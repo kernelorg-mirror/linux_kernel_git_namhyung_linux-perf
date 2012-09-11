@@ -52,6 +52,7 @@ rb_insert_callchain(struct rb_root *root, struct callchain_node *chain,
 				p = &(*p)->rb_right;
 			break;
 		case CHAIN_NONE:
+		case CHAIN_CUMULATIVE:
 		default:
 			break;
 		}
@@ -162,6 +163,7 @@ int callchain_register_param(struct callchain_param *param)
 		param->sort = sort_chain_flat;
 		break;
 	case CHAIN_NONE:
+	case CHAIN_CUMULATIVE:
 	default:
 		return -1;
 	}

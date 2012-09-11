@@ -283,6 +283,7 @@ static size_t hist_entry_callchain__fprintf(struct hist_entry *he,
 		return callchain__fprintf_flat(fp, &he->sorted_chain, total_samples);
 		break;
 	case CHAIN_NONE:
+	case CHAIN_CUMULATIVE:
 		break;
 	default:
 		pr_err("Bad callchain mode\n");

@@ -238,6 +238,8 @@ static bool hists__decay_entry(struct hists *hists, struct hist_entry *he)
 		return true;
 
 	hist_entry__decay(&he->stat);
+	if (callchain_param.mode == CHAIN_CUMULATIVE)
+		hist_entry__decay(he->stat_acc);
 
 	if (!he->filtered)
 		hists->stats.total_period -= prev_period - he->stat.period;
@@ -285,6 +287,15 @@ static struct hist_entry *hist_entry__new(struct hist_entry *template)
 	if (he != NULL) {
 		*he = *template;
 
+		if (callchain_param.mode == CHAIN_CUMULATIVE) {
+			he->stat_acc = malloc(sizeof(he->stat));
+			if (he->stat_acc == NULL) {
+				free(he);
+				return NULL;
+			}
+			memcpy(he->stat_acc, &he->stat, sizeof(he->stat));
+		}
+
 		if (he->ms.map)
 			he->ms.map->referenced = true;
 
@@ -296,6 +307,7 @@ static struct hist_entry *hist_entry__new(struct hist_entry *template)
 			 */
 			he->branch_info = malloc(sizeof(*he->branch_info));
 			if (he->branch_info == NULL) {
+				free(he->stat_acc);
 				free(he);
 				return NULL;
 			}
@@ -368,6 +380,8 @@ static struct hist_entry *add_hist_entry(struct hists *hists,
 
 		if (!cmp) {
 			he_stat__add_period(&he->stat, period, weight);
+			if (callchain_param.mode == CHAIN_CUMULATIVE)
+				he_stat__add_period(he->stat_acc, period, weight);
 
 			/*
 			 * This mem info was allocated from machine__resolve_mem
@@ -404,6 +418,8 @@ static struct hist_entry *add_hist_entry(struct hists *hists,
 	rb_insert_color(&he->rb_node_in, hists->entries_in);
 out:
 	hist_entry__add_cpumode_period(&he->stat, al->cpumode, period);
+	if (callchain_param.mode == CHAIN_CUMULATIVE)
+		hist_entry__add_cpumode_period(he->stat_acc, al->cpumode, period);
 	return he;
 }
 
@@ -502,6 +518,8 @@ static bool hists__collapse_insert_entry(struct hists *hists __maybe_unused,
 
 		if (!cmp) {
 			he_stat__add_stat(&iter->stat, &he->stat);
+			if (callchain_param.mode == CHAIN_CUMULATIVE)
+				he_stat__add_stat(iter->stat_acc, he->stat_acc);
 
 			if (symbol_conf.use_callchain) {
 				callchain_cursor_reset(&callchain_cursor);
