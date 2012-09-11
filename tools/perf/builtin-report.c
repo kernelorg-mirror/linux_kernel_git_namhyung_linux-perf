@@ -386,6 +386,138 @@ iter_finish_normal_entry(struct add_entry_iter *iter, struct addr_location *al)
 	return err;
 }
 
+static int
+iter_prepare_cumulative_entry(struct add_entry_iter *iter,
+			      struct machine *machine __maybe_unused,
+			      struct perf_evsel *evsel,
+			      struct addr_location *al __maybe_unused,
+			      struct perf_sample *sample)
+{
+	callchain_cursor_commit(&callchain_cursor);
+
+	/*
+	 * The first callchain node always contains same information
+	 * as a hist entry itself.  So skip it in order to prevent
+	 * double accounting.
+	 */
+	callchain_cursor_advance(&callchain_cursor);
+
+	iter->evsel = evsel;
+	iter->sample = sample;
+	return 0;
+}
+
+static int
+iter_add_single_cumulative_entry(struct add_entry_iter *iter,
+				 struct addr_location *al)
+{
+	struct perf_evsel *evsel = iter->evsel;
+	struct perf_sample *sample = iter->sample;
+	struct hist_entry *he;
+	int err = 0;
+
+	he = __hists__add_entry(&evsel->hists, al, iter->parent, NULL, NULL,
+				sample->period, sample->weight,
+				sample->transaction, true);
+	if (he == NULL)
+		return -ENOMEM;
+
+	/*
+	 * This is for putting parents upward during output resort iff
+	 * only a child gets sampled.  See hist_entry__sort_on_period().
+	 */
+	he->callchain->max_depth = PERF_MAX_STACK_DEPTH + 1;
+
+	/*
+	 * Only in the TUI browser we are doing integrated annotation,
+	 * so we don't allocated the extra space needed because the stdio
+	 * code will not use it.
+	 */
+	if (he->ms.sym != NULL && use_browser == 1 && sort__has_sym) {
+		struct annotation *notes = symbol__annotation(he->ms.sym);
+
+		assert(evsel != NULL);
+
+		if (notes->src == NULL && symbol__alloc_hist(he->ms.sym) < 0)
+			return -ENOMEM;
+
+		err = hist_entry__inc_addr_samples(he, evsel->idx, al->addr);
+	}
+
+	return err;
+}
+
+static int
+iter_next_cumulative_entry(struct add_entry_iter *iter __maybe_unused,
+			   struct addr_location *al)
+{
+	struct callchain_cursor_node *node;
+
+	node = callchain_cursor_current(&callchain_cursor);
+	if (node == NULL)
+		return 0;
+
+	al->map = node->map;
+	al->sym = node->sym;
+	al->addr = node->ip;
+
+	/*
+	 * XXX: Adding an entry without symbol info caused subtle
+	 * problems.  Stop it.
+	 */
+	if (al->sym == NULL)
+		return 0;
+
+	callchain_cursor_advance(&callchain_cursor);
+	return 1;
+}
+
+static int
+iter_add_next_cumulative_entry(struct add_entry_iter *iter,
+			       struct addr_location *al)
+{
+	struct perf_evsel *evsel = iter->evsel;
+	struct perf_sample *sample = iter->sample;
+	struct hist_entry *he;
+	int err = 0;
+
+	he = __hists__add_entry(&evsel->hists, al, iter->parent, NULL, NULL,
+				sample->period, sample->weight,
+				sample->transaction, false);
+	if (he == NULL)
+		return -ENOMEM;
+
+	/*
+	 * Only in the TUI browser we are doing integrated annotation,
+	 * so we don't allocated the extra space needed because the stdio
+	 * code will not use it.
+	 */
+	if (he->ms.sym != NULL && use_browser == 1 && sort__has_sym) {
+		struct annotation *notes = symbol__annotation(he->ms.sym);
+
+		assert(evsel != NULL);
+
+		if (notes->src == NULL && symbol__alloc_hist(he->ms.sym) < 0)
+			return -ENOMEM;
+
+		err = hist_entry__inc_addr_samples(he, evsel->idx, al->addr);
+	}
+	return err;
+}
+
+static int
+iter_finish_cumulative_entry(struct add_entry_iter *iter,
+			     struct addr_location *al __maybe_unused)
+{
+	struct perf_evsel *evsel = iter->evsel;
+	struct perf_sample *sample = iter->sample;
+
+	evsel->hists.stats.total_period += sample->period;
+	hists__inc_nr_events(&evsel->hists, PERF_RECORD_SAMPLE);
+
+	return 0;
+}
+
 static struct add_entry_iter mem_iter = {
 	.prepare_entry 		= iter_prepare_mem_entry,
 	.add_single_entry 	= iter_add_single_mem_entry,
@@ -408,6 +540,14 @@ static struct add_entry_iter normal_iter = {
 	.next_entry 		= iter_next_nop_entry,
 	.add_next_entry 	= iter_add_next_nop_entry,
 	.finish_entry 		= iter_finish_normal_entry,
+};
+
+static struct add_entry_iter cumulative_iter = {
+	.prepare_entry 		= iter_prepare_cumulative_entry,
+	.add_single_entry 	= iter_add_single_cumulative_entry,
+	.next_entry 		= iter_next_cumulative_entry,
+	.add_next_entry 	= iter_add_next_cumulative_entry,
+	.finish_entry 		= iter_finish_cumulative_entry,
 };
 
 static int
@@ -471,6 +611,8 @@ static int process_sample_event(struct perf_tool *tool,
 		iter = &branch_iter;
 	else if (rep->mem_mode == 1)
 		iter = &mem_iter;
+	else if (callchain_param.mode == CHAIN_CUMULATIVE)
+		iter = &cumulative_iter;
 	else
 		iter = &normal_iter;
 
