@@ -269,7 +269,7 @@ ifndef NO_GTK2
     ifeq ($(call try-cc,$(SOURCE_GTK2_INFOBAR),$(FLAGS_GTK2),-DHAVE_GTK_INFO_BAR),y)
       GTK_CFLAGS := -DHAVE_GTK_INFO_BAR
     endif
-    GTK_CFLAGS += -DGTK2_SUPPORT
+    CFLAGS += -DGTK2_SUPPORT
     GTK_CFLAGS += $(shell pkg-config --cflags gtk+-2.0 2>/dev/null)
     GTK_LIBS := $(shell pkg-config --libs gtk+-2.0 2>/dev/null)
   endif
