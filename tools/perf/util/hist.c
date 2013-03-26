@@ -52,6 +52,8 @@ void hists__reset_col_len(struct hists *hists)
 
 	for (col = 0; col < HISTC_NR_COLS; ++col)
 		hists__set_col_len(hists, col, 0);
+
+	hists__set_col_len(hists, HISTC_ADDR, BITS_PER_LONG / 4 + 2);
 }
 
 static void hists__set_unres_dso_col_len(struct hists *hists, int dso)
