@@ -146,6 +146,8 @@ enum sort_type {
 	SORT_DSO_TO,
 	SORT_SYM_FROM,
 	SORT_SYM_TO,
+	SORT_ADDR_FROM,
+	SORT_ADDR_TO,
 	SORT_MISPREDICT,
 
 	/* memory mode specific sort keys */
