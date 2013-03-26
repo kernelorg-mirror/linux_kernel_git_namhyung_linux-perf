@@ -436,6 +436,40 @@ static int hist_entry__sym_to_snprintf(struct hist_entry *self, char *bf,
 
 }
 
+static int64_t
+sort__addr_from_cmp(struct hist_entry *left, struct hist_entry *right)
+{
+	struct addr_map_symbol *from_l = &left->branch_info->from;
+	struct addr_map_symbol *from_r = &right->branch_info->from;
+
+	return from_r->addr - from_l->addr;
+}
+
+static int hist_entry__addr_from_snprintf(struct hist_entry *self, char *bf,
+					  size_t size, unsigned int width)
+{
+	struct addr_map_symbol *from = &self->branch_info->from;
+	return repsep_snprintf(bf, size, "%#*"PRIx64, width,
+					(uint64_t)from->addr);
+}
+
+static int64_t
+sort__addr_to_cmp(struct hist_entry *left, struct hist_entry *right)
+{
+	struct addr_map_symbol *to_l = &left->branch_info->to;
+	struct addr_map_symbol *to_r = &right->branch_info->to;
+
+	return to_r->addr - to_l->addr;
+}
+
+static int hist_entry__addr_to_snprintf(struct hist_entry *self, char *bf,
+					size_t size, unsigned int width)
+{
+	struct addr_map_symbol *to = &self->branch_info->to;
+	return repsep_snprintf(bf, size, "%#*"PRIx64, width,
+					(uint64_t)to->addr);
+}
+
 struct sort_entry sort_dso_from = {
 	.se_header	= "Source Shared Object",
 	.se_cmp		= sort__dso_from_cmp,
@@ -462,6 +496,20 @@ struct sort_entry sort_sym_to = {
 	.se_cmp		= sort__sym_to_cmp,
 	.se_snprintf	= hist_entry__sym_to_snprintf,
 	.se_width_idx	= HISTC_SYMBOL_TO,
+};
+
+struct sort_entry sort_addr_from = {
+	.se_header	= "Source Address",
+	.se_cmp		= sort__addr_from_cmp,
+	.se_snprintf	= hist_entry__addr_from_snprintf,
+	.se_width_idx	= HISTC_ADDR_FROM,
+};
+
+struct sort_entry sort_addr_to = {
+	.se_header	= "Target Address",
+	.se_cmp		= sort__addr_to_cmp,
+	.se_snprintf	= hist_entry__addr_to_snprintf,
+	.se_width_idx	= HISTC_ADDR_TO,
 };
 
 static int64_t
@@ -905,6 +953,8 @@ static struct sort_dimension bstack_sort_dimensions[] = {
 	DIM(SORT_DSO_TO, "dso_to", sort_dso_to),
 	DIM(SORT_SYM_FROM, "symbol_from", sort_sym_from),
 	DIM(SORT_SYM_TO, "symbol_to", sort_sym_to),
+	DIM(SORT_ADDR_FROM, "addr_from", sort_addr_from),
+	DIM(SORT_ADDR_TO, "addr_to", sort_addr_to),
 	DIM(SORT_MISPREDICT, "mispredict", sort_mispredict),
 };
 
