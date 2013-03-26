@@ -342,6 +342,28 @@ struct sort_entry sort_cpu = {
 	.se_width_idx	= HISTC_CPU,
 };
 
+/* --sort addr */
+
+static int64_t
+sort__addr_cmp(struct hist_entry *left, struct hist_entry *right)
+{
+	return right->ip - left->ip;
+}
+
+static int hist_entry__addr_snprintf(struct hist_entry *self, char *bf,
+				     size_t size, unsigned int width)
+{
+	return repsep_snprintf(bf, size, "%#*"PRIx64, width, (uint64_t)self->ip);
+}
+
+struct sort_entry sort_addr = {
+	.se_header      = "Address",
+	.se_cmp	        = sort__addr_cmp,
+	.se_snprintf    = hist_entry__addr_snprintf,
+	.se_width_idx	= HISTC_ADDR,
+};
+
+
 /* sort keys for branch stacks */
 
 static int64_t
@@ -871,6 +893,7 @@ static struct sort_dimension common_sort_dimensions[] = {
 	DIM(SORT_PARENT, "parent", sort_parent),
 	DIM(SORT_CPU, "cpu", sort_cpu),
 	DIM(SORT_SRCLINE, "srcline", sort_srcline),
+	DIM(SORT_ADDR, "addr", sort_addr),
 };
 
 #undef DIM
