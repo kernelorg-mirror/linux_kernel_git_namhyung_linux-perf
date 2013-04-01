@@ -47,7 +47,7 @@ OPTIONS
 
 -s::
 --sort=::
-	Sort by key(s): pid, comm, dso, symbol.
+	Sort by key(s): pid, comm, dso, symbol, parent, cpu, srcline, addr.
 
 -t::
 --field-separator=::
