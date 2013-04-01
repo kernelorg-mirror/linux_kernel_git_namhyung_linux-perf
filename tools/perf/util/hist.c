@@ -56,6 +56,12 @@ void hists__reset_col_len(struct hists *hists)
 	hists__set_col_len(hists, HISTC_ADDR, BITS_PER_LONG / 4 + 2);
 	hists__set_col_len(hists, HISTC_ADDR_FROM, BITS_PER_LONG / 4 + 2);
 	hists__set_col_len(hists, HISTC_ADDR_TO, BITS_PER_LONG / 4 + 2);
+	hists__set_col_len(hists, HISTC_LOCAL_WEIGHT, 12);
+	hists__set_col_len(hists, HISTC_GLOBAL_WEIGHT, 12);
+	hists__set_col_len(hists, HISTC_MEM_LOCKED, 6);
+	hists__set_col_len(hists, HISTC_MEM_TLB, 22);
+	hists__set_col_len(hists, HISTC_MEM_SNOOP, 12);
+	hists__set_col_len(hists, HISTC_MEM_LVL, 21 + 3);
 }
 
 static void hists__set_unres_dso_col_len(struct hists *hists, int dso)
@@ -156,13 +162,6 @@ void hists__calc_col_len(struct hists *hists, struct hist_entry *h)
 		hists__new_col_len(hists, HISTC_MEM_DADDR_SYMBOL, symlen);
 		hists__set_unres_dso_col_len(hists, HISTC_MEM_DADDR_DSO);
 	}
-
-	hists__new_col_len(hists, HISTC_MEM_LOCKED, 6);
-	hists__new_col_len(hists, HISTC_MEM_TLB, 22);
-	hists__new_col_len(hists, HISTC_MEM_SNOOP, 12);
-	hists__new_col_len(hists, HISTC_MEM_LVL, 21 + 3);
-	hists__new_col_len(hists, HISTC_LOCAL_WEIGHT, 12);
-	hists__new_col_len(hists, HISTC_GLOBAL_WEIGHT, 12);
 }
 
 void hists__output_recalc_col_len(struct hists *hists, int max_rows)
