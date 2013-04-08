@@ -18,6 +18,7 @@
 #include "util/evlist.h"
 #include "util/target.h"
 #include "util/thread_map.h"
+#include "util/cpumap.h"
 
 
 #define DEFAULT_TRACER  "function_graph"
@@ -110,6 +111,26 @@ static int set_tracing_pid(struct perf_ftrace *ftrace)
 	return 0;
 }
 
+static int set_tracing_cpu(struct perf_ftrace *ftrace)
+{
+	int i;
+	unsigned long cpumask = 0;
+	char cpumask_str[sizeof(cpumask)*2 + 1];
+
+	if (!perf_target__has_cpu(&ftrace->target))
+		return 0;
+
+	for (i = 0; i < cpu_map__nr(ftrace->evlist->cpus); i++)
+		cpumask |= 1 << ftrace->evlist->cpus->map[i];
+
+	scnprintf(cpumask_str, sizeof(cpumask_str), "%lx", cpumask);
+
+	if (write_tracing_file("tracing_cpumask", cpumask_str) < 0)
+		return -1;
+
+	return 0;
+}
+
 static int __cmd_ftrace(struct perf_ftrace *ftrace, int argc, const char **argv)
 {
 	char *trace_file;
@@ -143,6 +164,11 @@ static int __cmd_ftrace(struct perf_ftrace *ftrace, int argc, const char **argv)
 
 	if (set_tracing_pid(ftrace) < 0) {
 		pr_err("failed to set ftrace pid\n");
+		goto out_reset;
+	}
+
+	if (set_tracing_cpu(ftrace) < 0) {
+		pr_err("failed to set tracing cpumask\n");
 		goto out_reset;
 	}
 
@@ -226,6 +252,10 @@ int cmd_ftrace(int argc, const char **argv, const char *prefix __maybe_unused)
 		   "trace on existing process id"),
 	OPT_INCR('v', "verbose", &verbose,
 		 "be more verbose"),
+	OPT_BOOLEAN('a', "all-cpus", &ftrace.target.system_wide,
+		    "system-wide collection from all CPUs"),
+	OPT_STRING('C', "cpu", &ftrace.target.cpu_list, "cpu",
+		    "list of cpus to monitor"),
 	OPT_END()
 	};
 
