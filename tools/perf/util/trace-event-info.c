@@ -414,12 +414,31 @@ get_tracepoints_path(struct list_head *pattrs)
 		if (pos->attr.type != PERF_TYPE_TRACEPOINT)
 			continue;
 		++nr_tracepoints;
+
+		if (pos->name && strchr(pos->name, ':')) {
+			char *str = strchr(pos->name, ':');
+
+			ppath->next = zalloc(sizeof(path));
+			if (!ppath->next)
+				goto error;
+
+			ppath->next->system = strndup(pos->name, str - pos->name);
+			ppath->next->name = strdup(str+1);
+
+			if (!ppath->next->system || !ppath->next->name)
+				goto error;
+
+			goto next;
+		}
+
 		ppath->next = tracepoint_id_to_path(pos->attr.config);
 		if (!ppath->next) {
+error:
 			pr_debug("No memory to alloc tracepoints list\n");
 			put_tracepoints_path(&path);
 			return NULL;
 		}
+next:
 		ppath = ppath->next;
 	}
 
