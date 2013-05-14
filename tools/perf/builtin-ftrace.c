@@ -41,6 +41,13 @@ struct perf_ftrace {
 
 static bool done;
 
+static void sig_exit(int sig)
+{
+	psignal(sig, "perf");
+	signal(sig, SIG_DFL);
+	raise(sig);
+}
+
 static void sig_handler(int sig __maybe_unused)
 {
 	done = true;
@@ -228,6 +235,7 @@ static int do_ftrace_live(struct perf_ftrace *ftrace)
 	signal(SIGUSR1, sig_handler);
 	signal(SIGCHLD, sig_handler);
 	signal(SIGPIPE, sig_handler);
+	signal(SIGSEGV, sig_exit);
 
 	if (setup_tracing_files(ftrace) < 0)
 		goto out_reset;
@@ -602,6 +610,7 @@ static int do_ftrace_record(struct perf_ftrace *ftrace)
 	signal(SIGINT, sig_handler);
 	signal(SIGUSR1, sig_handler);
 	signal(SIGCHLD, sig_handler);
+	signal(SIGSEGV, sig_exit);
 
 	if (setup_tracing_files(ftrace) < 0)
 		goto out_reset;
@@ -1100,6 +1109,8 @@ static int do_ftrace_show(struct perf_ftrace *ftrace)
 		},
 	};
 
+	signal(SIGSEGV, sig_exit);
+
 	scnprintf(buf, sizeof(buf), "%s.dir/perf.header", ftrace->dirname);
 
 	session = perf_session__new(buf, O_RDONLY, false, false, &show.tool);
@@ -1270,6 +1281,8 @@ static int do_ftrace_report(struct perf_ftrace *ftrace)
 	struct func_list *func;
 	struct machine *machine;
 	struct dso *dso;
+
+	signal(SIGSEGV, sig_exit);
 
 	scnprintf(buf, sizeof(buf), "%s.dir/perf.header", ftrace->dirname);
 
