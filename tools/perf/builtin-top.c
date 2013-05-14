@@ -1032,6 +1032,19 @@ parse_percent_limit(const struct option *opt, const char *arg,
 	return 0;
 }
 
+static int perf_top_config(const char *var, const char *value, void *cb)
+{
+	/* share report config variables */
+	if (!strcmp(var, "report.percent-limit")) {
+		struct perf_top *top = cb;
+
+		top->min_percent = strtof(value, NULL);
+		return 0;
+	}
+
+	return perf_default_config(var, value, cb);
+}
+
 int cmd_top(int argc, const char **argv, const char *prefix __maybe_unused)
 {
 	int status;
@@ -1131,6 +1144,8 @@ int cmd_top(int argc, const char **argv, const char *prefix __maybe_unused)
 		return -ENOMEM;
 
 	symbol_conf.exclude_other = false;
+
+	perf_config(perf_top_config, &top);
 
 	argc = parse_options(argc, argv, options, top_usage, 0);
 	if (argc)
