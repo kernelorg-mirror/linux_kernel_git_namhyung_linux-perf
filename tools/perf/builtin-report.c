@@ -809,6 +809,7 @@ int cmd_report(int argc, const char **argv, const char *prefix __maybe_unused)
 	OPT_BOOLEAN(0, "demangle", &symbol_conf.demangle,
 		    "Disable symbol demangling"),
 	OPT_BOOLEAN(0, "mem-mode", &report.mem_mode, "mem access profile"),
+	OPT_BOOLEAN('H', "hierarchy", &symbol_conf.hierarchy, "Hierarchical view"),
 	OPT_END()
 	};
 
@@ -831,6 +832,11 @@ int cmd_report(int argc, const char **argv, const char *prefix __maybe_unused)
 			input_name = "-";
 		else
 			input_name = "perf.data";
+	}
+
+	if (symbol_conf.hierarchy && use_browser != 2) {
+		pr_err("--hierarchy option is only used for --gtk output\n");
+		return -EINVAL;
 	}
 
 	if (strcmp(input_name, "-") != 0)

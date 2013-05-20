@@ -210,6 +210,11 @@ OPTIONS
 	Demangle symbol names to human readable form. It's enabled by default,
 	disable with --no-demangle.
 
+-H::
+--hierarchy::
+	Show events in hierarchical view.  Each events are grouped under prior
+	sort keys.  Currently --gtk output is supported only.
+
 SEE ALSO
 --------
 linkperf:perf-stat[1], linkperf:perf-annotate[1]
