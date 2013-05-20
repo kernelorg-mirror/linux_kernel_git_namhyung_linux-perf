@@ -98,7 +98,8 @@ struct symbol_conf {
 			annotate_asm_raw,
 			annotate_src,
 			event_group,
-			demangle;
+			demangle,
+			hierarchy;
 	const char	*vmlinux_name,
 			*kallsyms_name,
 			*source_prefix,

@@ -348,7 +348,7 @@ static u8 symbol__parent_filter(const struct symbol *parent)
 	return 0;
 }
 
-static struct hist_entry *add_hist_entry(struct hists *hists,
+static struct hist_entry *__add_hist_entry(struct hists *hists,
 				      struct hist_entry *entry,
 				      struct addr_location *al,
 				      u64 period,
@@ -415,6 +415,96 @@ out:
 out_unlock:
 	pthread_mutex_unlock(&hists->lock);
 	return he;
+}
+
+static struct hist_entry *__add_hist_entry_hierarchy(struct hists *hists,
+						     struct hist_entry *entry,
+						     struct addr_location *al,
+						     u64 period, u64 weight)
+{
+	struct rb_root *root;
+	struct rb_node **p;
+	struct rb_node *parent = NULL;
+	struct hist_entry *he = NULL;
+	struct sort_entry *se;
+	int cmp;
+
+	pthread_mutex_lock(&hists->lock);
+
+	root = hists->entries_in;
+	p = &root->rb_node;
+
+	list_for_each_entry(se, &hist_entry__sort_list, list) {
+		while (*p != NULL) {
+			parent = *p;
+			he = rb_entry(parent, struct hist_entry, rb_node_in);
+
+			/*
+			 * Make sure that it receives arguments in a same order as
+			 * hist_entry__collapse() so that we can use an appropriate
+			 * function when searching an entry regardless which sort
+			 * keys were used.
+			 */
+			cmp = se->se_cmp(he, entry);
+
+			if (!cmp) {
+				he_stat__add_period(&he->stat, period, weight);
+
+				/*
+				 * This mem info was allocated from machine__resolve_mem
+				 * and will not be used anymore.
+				 */
+				free(entry->mem_info);
+
+				/* If the map of an existing hist_entry has
+				 * become out-of-date due to an exec() or
+				 * similar, update it.  Otherwise we will
+				 * mis-adjust symbol addresses when computing
+				 * the history counter to increment.
+				 */
+				if (he->ms.map != entry->ms.map) {
+					he->ms.map = entry->ms.map;
+					if (he->ms.map)
+						he->ms.map->referenced = true;
+				}
+				goto next;
+			}
+
+			if (cmp < 0)
+				p = &(*p)->rb_left;
+			else
+				p = &(*p)->rb_right;
+		}
+
+		he = hist_entry__new(entry);
+		if (!he)
+			goto out_unlock;
+
+		rb_link_node(&he->rb_node_in, parent, p);
+		rb_insert_color(&he->rb_node_in, root);
+next:
+		hist_entry__add_cpumode_period(he, al->cpumode, period);
+
+		root = &he->rb_hroot_in;
+		p = &root->rb_node;
+		parent = NULL;
+	}
+
+out_unlock:
+	pthread_mutex_unlock(&hists->lock);
+	return he;
+}
+
+static struct hist_entry *add_hist_entry(struct hists *hists,
+				      struct hist_entry *entry,
+				      struct addr_location *al,
+				      u64 period,
+				      u64 weight)
+{
+	if (!symbol_conf.hierarchy)
+		return __add_hist_entry(hists, entry, al, period, weight);
+
+	return __add_hist_entry_hierarchy(hists, entry, al, period, weight);
 }
 
 struct hist_entry *__hists__add_mem_entry(struct hists *self,
@@ -548,6 +638,8 @@ void hist_entry__free(struct hist_entry *he)
 	free(he);
 }
 
+static void hists__apply_filters(struct hists *hists, struct hist_entry *he);
+
 /*
  * collapse the histogram
  */
@@ -591,6 +683,114 @@ static bool hists__collapse_insert_entry(struct hists *hists __maybe_unused,
 	return true;
 }
 
+static void hists__collapse_resort_entries(struct hists *hists,
+					   struct rb_root *root_in,
+					   struct rb_root *root)
+{
+	struct rb_node *next;
+	struct hist_entry *he;
+
+	next = rb_first(root_in);
+
+	while (next) {
+		he = rb_entry(next, struct hist_entry, rb_node_in);
+		next = rb_next(&he->rb_node_in);
+
+		rb_erase(&he->rb_node_in, root_in);
+		if (hists__collapse_insert_entry(hists, root, he)) {
+			/*
+			 * If it wasn't combined with one of the entries already
+			 * collapsed, we need to apply the filters that may have
+			 * been set by, say, the hist_browser.
+			 */
+			hists__apply_filters(hists, he);
+		}
+	}
+}
+
+static struct hist_entry *
+__collapse_insert_entry_hierarchy(struct rb_root *root, struct hist_entry *he,
+				  struct sort_entry *se)
+{
+	struct rb_node **p = &root->rb_node;
+	struct rb_node *parent = NULL;
+	struct hist_entry *iter;
+	int64_t cmp;
+
+	while (*p != NULL) {
+		int64_t (*f)(struct hist_entry *, struct hist_entry *);
+		f = se->se_collapse ?: se->se_cmp;
+
+		parent = *p;
+		iter = rb_entry(parent, struct hist_entry, rb_node_in);
+
+		cmp = f(iter, he);
+
+		if (!cmp) {
+			he_stat__add_stat(&iter->stat, &he->stat);
+
+			if (symbol_conf.use_callchain) {
+				callchain_cursor_reset(&callchain_cursor);
+				callchain_merge(&callchain_cursor,
+						iter->callchain,
+						he->callchain);
+			}
+			return iter;
+		}
+
+		if (cmp < 0)
+			p = &(*p)->rb_left;
+		else
+			p = &(*p)->rb_right;
+	}
+
+	rb_link_node(&he->rb_node_in, parent, p);
+	rb_insert_color(&he->rb_node_in, root);
+	return he;
+}
+
+static void
+hists__collapse_resort_entries_hierarchy(struct hists *hists,
+					 struct rb_root *root_in,
+					 struct rb_root *root,
+					 struct sort_entry *se)
+{
+	struct rb_node *next;
+	struct hist_entry *he;
+	struct sort_entry *se_next;
+
+	next = rb_first(root_in);
+	if (next == NULL)
+		return;
+
+	BUG_ON(&se->list == &hist_entry__sort_list);
+	se_next = list_entry(se->list.next, struct sort_entry, list);
+
+	while (next) {
+		struct hist_entry *he_new;
+
+		he = rb_entry(next, struct hist_entry, rb_node_in);
+		next = rb_next(&he->rb_node_in);
+
+		rb_erase(&he->rb_node_in, root_in);
+		he_new = __collapse_insert_entry_hierarchy(root, he, se);
+		if (he == he_new) {
+			/*
+			 * If it wasn't combined with one of the entries already
+			 * collapsed, we need to apply the filters that may have
+			 * been set by, say, the hist_browser.
+			 */
+			hists__apply_filters(hists, he);
+		}
+
+		hists__collapse_resort_entries_hierarchy(hists, &he->rb_hroot_in,
+					&he_new->rb_hroot_collapsed, se_next);
+
+		if (he != he_new)
+			hist_entry__free(he);
+	}
+}
+
 static struct rb_root *hists__get_rotate_entries_in(struct hists *hists)
 {
 	struct rb_root *root;
@@ -606,39 +806,23 @@ static struct rb_root *hists__get_rotate_entries_in(struct hists *hists)
 	return root;
 }
 
-static void hists__apply_filters(struct hists *hists, struct hist_entry *he)
-{
-	hists__filter_entry_by_dso(hists, he);
-	hists__filter_entry_by_thread(hists, he);
-	hists__filter_entry_by_symbol(hists, he);
-}
-
 static void __hists__collapse_resort(struct hists *hists, bool threaded)
 {
+	struct rb_root *root_in;
 	struct rb_root *root;
-	struct rb_node *next;
-	struct hist_entry *n;
+	struct sort_entry *se;
 
 	if (!sort__need_collapse && !threaded)
 		return;
 
-	root = hists__get_rotate_entries_in(hists);
-	next = rb_first(root);
+	root_in = hists__get_rotate_entries_in(hists);
+	root = &hists->entries_collapsed;
 
-	while (next) {
-		n = rb_entry(next, struct hist_entry, rb_node_in);
-		next = rb_next(&n->rb_node_in);
+	if (!symbol_conf.hierarchy)
+		return hists__collapse_resort_entries(hists, root_in, root);
 
-		rb_erase(&n->rb_node_in, root);
-		if (hists__collapse_insert_entry(hists, &hists->entries_collapsed, n)) {
-			/*
-			 * If it wasn't combined with one of the entries already
-			 * collapsed, we need to apply the filters that may have
-			 * been set by, say, the hist_browser.
-			 */
-			hists__apply_filters(hists, n);
-		}
-	}
+	se = list_first_entry(&hist_entry__sort_list, struct sort_entry, list);
+	hists__collapse_resort_entries_hierarchy(hists, root_in, root, se);
 }
 
 void hists__collapse_resort(struct hists *hists)
@@ -711,11 +895,11 @@ out:
 	return ret;
 }
 
-static void __hists__insert_output_entry(struct rb_root *entries,
+static void __hists__insert_output_entry(struct rb_root *root,
 					 struct hist_entry *he,
 					 u64 min_callchain_hits)
 {
-	struct rb_node **p = &entries->rb_node;
+	struct rb_node **p = &root->rb_node;
 	struct rb_node *parent = NULL;
 	struct hist_entry *iter;
 
@@ -734,37 +918,92 @@ static void __hists__insert_output_entry(struct rb_root *entries,
 	}
 
 	rb_link_node(&he->rb_node, parent, p);
-	rb_insert_color(&he->rb_node, entries);
+	rb_insert_color(&he->rb_node, root);
+}
+
+static void hists__output_resort_entries(struct hists *hists,
+					 struct rb_root *root_in,
+					 struct rb_root *root,
+					 u64 min_callchain_hits)
+{
+	struct rb_node *next;
+	struct hist_entry *he;
+
+	next = rb_first(root_in);
+
+	while (next) {
+		he = rb_entry(next, struct hist_entry, rb_node_in);
+		next = rb_next(&he->rb_node_in);
+
+		__hists__insert_output_entry(root, he, min_callchain_hits);
+		hists__inc_nr_entries(hists, he);
+	}
+}
+
+static void hists__output_resort_entries_hierarchy(struct hists *hists,
+						   struct rb_root *root_in,
+						   struct rb_root *root,
+						   u64 min_callchain_hits,
+						   bool threaded)
+{
+	struct rb_node *next;
+	struct hist_entry *he;
+	struct rb_root *hroot_in;
+
+	next = rb_first(root_in);
+
+	if (next == NULL) {
+		he = list_entry(root, struct hist_entry, rb_hroot);
+		/* only count leaf nodes */
+		hists__inc_nr_entries(hists, he);
+		return;
+	}
+
+	while (next) {
+		he = rb_entry(next, struct hist_entry, rb_node_in);
+		next = rb_next(&he->rb_node_in);
+
+		__hists__insert_output_entry(root, he, min_callchain_hits);
+
+		if (sort__need_collapse || threaded)
+			hroot_in = &he->rb_hroot_collapsed;
+		else
+			hroot_in = &he->rb_hroot_in;
+
+		hists__output_resort_entries_hierarchy(hists, hroot_in,
+						       &he->rb_hroot,
+						       min_callchain_hits,
+						       threaded);
+	}
 }
 
 static void __hists__output_resort(struct hists *hists, bool threaded)
 {
+	struct rb_root *root_in;
 	struct rb_root *root;
-	struct rb_node *next;
-	struct hist_entry *n;
 	u64 min_callchain_hits;
 
 	min_callchain_hits = hists->stats.total_period * (callchain_param.min_percent / 100);
 
 	if (sort__need_collapse || threaded)
-		root = &hists->entries_collapsed;
+		root_in = &hists->entries_collapsed;
 	else
-		root = hists->entries_in;
+		root_in = hists->entries_in;
 
-	next = rb_first(root);
 	hists->entries = RB_ROOT;
+	root = &hists->entries;
 
 	hists->nr_entries = 0;
 	hists->stats.total_period = 0;
 	hists__reset_col_len(hists);
 
-	while (next) {
-		n = rb_entry(next, struct hist_entry, rb_node_in);
-		next = rb_next(&n->rb_node_in);
-
-		__hists__insert_output_entry(&hists->entries, n, min_callchain_hits);
-		hists__inc_nr_entries(hists, n);
+	if (!symbol_conf.hierarchy) {
+		return hists__output_resort_entries(hists, root_in, root,
+						    min_callchain_hits);
 	}
+
+	hists__output_resort_entries_hierarchy(hists, root_in, root,
+					       min_callchain_hits, threaded);
 }
 
 void hists__output_resort(struct hists *hists)
@@ -888,6 +1127,14 @@ void hists__filter_by_symbol(struct hists *hists)
 		hists__remove_entry_filter(hists, h, HIST_FILTER__SYMBOL);
 	}
 }
+
+static void hists__apply_filters(struct hists *hists, struct hist_entry *he)
+{
+	hists__filter_entry_by_dso(hists, he);
+	hists__filter_entry_by_thread(hists, he);
+	hists__filter_entry_by_symbol(hists, he);
+}
+
 
 int hist_entry__inc_addr_samples(struct hist_entry *he, int evidx, u64 ip)
 {

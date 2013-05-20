@@ -75,6 +75,9 @@ struct hist_entry_diff {
 struct hist_entry {
 	struct rb_node		rb_node_in;
 	struct rb_node		rb_node;
+	struct rb_root		rb_hroot_in;
+	struct rb_root		rb_hroot_collapsed;
+	struct rb_root		rb_hroot;
 	union {
 		struct list_head node;
 		struct list_head head;
