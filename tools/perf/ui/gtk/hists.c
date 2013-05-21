@@ -124,6 +124,46 @@ void perf_gtk__init_hpp(void)
 				perf_gtk__hpp_color_overhead_guest_us;
 }
 
+static void perf_gtk__add_entries(struct hists *hists, struct perf_hpp *hpp,
+				  GtkTreeStore *store)
+{
+	int col_idx;
+	struct rb_node *nd;
+	struct perf_hpp_fmt *fmt;
+	struct sort_entry *se;
+
+	for (nd = rb_first(&hists->entries); nd; nd = rb_next(nd)) {
+		struct hist_entry *h = rb_entry(nd, struct hist_entry, rb_node);
+		GtkTreeIter iter;
+
+		if (h->filtered)
+			continue;
+
+		gtk_tree_store_append(store, &iter, NULL);
+
+		col_idx = 0;
+
+		perf_hpp__for_each_format(fmt) {
+			if (fmt->color)
+				fmt->color(hpp, h);
+			else
+				fmt->entry(hpp, h);
+
+			gtk_tree_store_set(store, &iter, col_idx++, hpp->buf, -1);
+		}
+
+		list_for_each_entry(se, &hist_entry__sort_list, list) {
+			if (se->elide)
+				continue;
+
+			se->se_snprintf(h, hpp->buf, hpp->size,
+					hists__col_len(hists, se->se_width_idx));
+
+			gtk_tree_store_set(store, &iter, col_idx++, hpp->buf, -1);
+		}
+	}
+}
+
 static void perf_gtk__show_hists(GtkWidget *window, struct hists *hists)
 {
 	struct perf_hpp_fmt *fmt;
@@ -131,7 +171,6 @@ static void perf_gtk__show_hists(GtkWidget *window, struct hists *hists)
 	GtkCellRenderer *renderer;
 	struct sort_entry *se;
 	GtkTreeStore *store;
-	struct rb_node *nd;
 	GtkWidget *view;
 	int col_idx;
 	int nr_cols;
@@ -186,36 +225,7 @@ static void perf_gtk__show_hists(GtkWidget *window, struct hists *hists)
 
 	g_object_unref(GTK_TREE_MODEL(store));
 
-	for (nd = rb_first(&hists->entries); nd; nd = rb_next(nd)) {
-		struct hist_entry *h = rb_entry(nd, struct hist_entry, rb_node);
-		GtkTreeIter iter;
-
-		if (h->filtered)
-			continue;
-
-		gtk_tree_store_append(store, &iter, NULL);
-
-		col_idx = 0;
-
-		perf_hpp__for_each_format(fmt) {
-			if (fmt->color)
-				fmt->color(&hpp, h);
-			else
-				fmt->entry(&hpp, h);
-
-			gtk_tree_store_set(store, &iter, col_idx++, s, -1);
-		}
-
-		list_for_each_entry(se, &hist_entry__sort_list, list) {
-			if (se->elide)
-				continue;
-
-			se->se_snprintf(h, s, ARRAY_SIZE(s),
-					hists__col_len(hists, se->se_width_idx));
-
-			gtk_tree_store_set(store, &iter, col_idx++, s, -1);
-		}
-	}
+	perf_gtk__add_entries(hists, &hpp, store);
 
 	gtk_container_add(GTK_CONTAINER(window), view);
 }
