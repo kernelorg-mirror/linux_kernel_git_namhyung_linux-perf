@@ -220,6 +220,18 @@ static void perf_gtk__add_entries_hierarchy(struct hists *hists,
 	__perf_gtk__add_entries_hierarchy(hists, root, store, NULL, hpp, se);
 }
 
+static void on_row_activated(GtkTreeView *view, GtkTreePath *path,
+			     GtkTreeViewColumn *col __maybe_unused,
+			     gpointer user_data __maybe_unused)
+{
+	bool expanded = gtk_tree_view_row_expanded(view, path);
+
+	if (expanded)
+		gtk_tree_view_collapse_row(view, path);
+	else
+		gtk_tree_view_expand_row(view, path, FALSE);
+}
+
 static void perf_gtk__show_hists(GtkWidget *window, struct hists *hists)
 {
 	struct perf_hpp_fmt *fmt;
@@ -322,6 +334,9 @@ add:
 						  expander_col);
 
 		perf_gtk__add_entries_hierarchy(hists, &hpp, store);
+
+		g_signal_connect(view, "row-activated",
+				 G_CALLBACK(on_row_activated), NULL);
 	}
 
 	gtk_container_add(GTK_CONTAINER(window), view);
