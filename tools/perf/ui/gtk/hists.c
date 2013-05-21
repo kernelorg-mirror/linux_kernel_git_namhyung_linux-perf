@@ -164,6 +164,62 @@ static void perf_gtk__add_entries(struct hists *hists, struct perf_hpp *hpp,
 	}
 }
 
+static void __perf_gtk__add_entries_hierarchy(struct hists *hists,
+					      struct rb_root *root,
+					      GtkTreeStore *store,
+					      GtkTreeIter *parent,
+					      struct perf_hpp *hpp,
+					      struct sort_entry *se)
+{
+	int col_idx;
+	struct rb_node *nd;
+	struct perf_hpp_fmt *fmt;
+
+	for (nd = rb_first(root); nd; nd = rb_next(nd)) {
+		struct hist_entry *h = rb_entry(nd, struct hist_entry, rb_node);
+		GtkTreeIter iter;
+		struct sort_entry *next_se;
+
+		if (h->filtered)
+			continue;
+
+		gtk_tree_store_append(store, &iter, parent);
+
+		col_idx = 0;
+
+		perf_hpp__for_each_format(fmt) {
+			if (fmt->color)
+				fmt->color(hpp, h);
+			else
+				fmt->entry(hpp, h);
+
+			gtk_tree_store_set(store, &iter, col_idx++, hpp->buf, -1);
+		}
+
+		se->se_snprintf(h, hpp->buf, hpp->size,
+				hists__col_len(hists, se->se_width_idx));
+
+		gtk_tree_store_set(store, &iter, col_idx++, ltrim(hpp->buf), -1);
+
+		next_se = list_entry(se->list.next, struct sort_entry, list);
+		__perf_gtk__add_entries_hierarchy(hists, &h->rb_hroot, store,
+						  &iter, hpp, next_se);
+	}
+}
+
+static void perf_gtk__add_entries_hierarchy(struct hists *hists,
+					    struct perf_hpp *hpp,
+					    GtkTreeStore *store)
+{
+	struct rb_root *root;
+	struct sort_entry *se;
+
+	root = &hists->entries;
+	se = list_first_entry(&hist_entry__sort_list, struct sort_entry, list);
+
+	__perf_gtk__add_entries_hierarchy(hists, root, store, NULL, hpp, se);
+}
+
 static void perf_gtk__show_hists(GtkWidget *window, struct hists *hists)
 {
 	struct perf_hpp_fmt *fmt;
@@ -173,6 +229,7 @@ static void perf_gtk__show_hists(GtkWidget *window, struct hists *hists)
 	GtkTreeStore *store;
 	GtkWidget *view;
 	int col_idx;
+	int sort_col = 0;
 	int nr_cols;
 	char s[512];
 
@@ -187,11 +244,19 @@ static void perf_gtk__show_hists(GtkWidget *window, struct hists *hists)
 	perf_hpp__for_each_format(fmt)
 		col_types[nr_cols++] = G_TYPE_STRING;
 
-	list_for_each_entry(se, &hist_entry__sort_list, list) {
-		if (se->elide)
-			continue;
-
-		col_types[nr_cols++] = G_TYPE_STRING;
+	if (symbol_conf.hierarchy) {
+		/*
+		 * In --hierarchy mode, all sort entries are displayed in a
+		 * single column.
+		 */
+		col_types[nr_cols] = G_TYPE_STRING;
+		sort_col = nr_cols++;
+	} else {
+		list_for_each_entry(se, &hist_entry__sort_list, list) {
+			if (se->elide)
+				continue;
+			col_types[nr_cols++] = G_TYPE_STRING;
+		}
 	}
 
 	store = gtk_tree_store_newv(nr_cols, col_types);
@@ -211,6 +276,26 @@ static void perf_gtk__show_hists(GtkWidget *window, struct hists *hists)
 							    col_idx++, NULL);
 	}
 
+	if (symbol_conf.hierarchy) {
+		bool first = true;
+
+		s[0] = '\0';
+		list_for_each_entry(se, &hist_entry__sort_list, list) {
+			if (!first)
+				strcat(s, " / ");
+
+			strcat(s, se->se_header);
+
+			first = false;
+		}
+
+		gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(view),
+							    -1, s,
+							    renderer, "text",
+							    col_idx++, NULL);
+		goto add;
+	}
+
 	list_for_each_entry(se, &hist_entry__sort_list, list) {
 		if (se->elide)
 			continue;
@@ -221,11 +306,23 @@ static void perf_gtk__show_hists(GtkWidget *window, struct hists *hists)
 							    col_idx++, NULL);
 	}
 
+add:
 	gtk_tree_view_set_model(GTK_TREE_VIEW(view), GTK_TREE_MODEL(store));
 
 	g_object_unref(GTK_TREE_MODEL(store));
 
-	perf_gtk__add_entries(hists, &hpp, store);
+	if (!symbol_conf.hierarchy)
+		perf_gtk__add_entries(hists, &hpp, store);
+	else {
+		GtkTreeViewColumn *expander_col;
+
+		expander_col = gtk_tree_view_get_column(GTK_TREE_VIEW(view),
+							sort_col);
+		gtk_tree_view_set_expander_column(GTK_TREE_VIEW(view),
+						  expander_col);
+
+		perf_gtk__add_entries_hierarchy(hists, &hpp, store);
+	}
 
 	gtk_container_add(GTK_CONTAINER(window), view);
 }
