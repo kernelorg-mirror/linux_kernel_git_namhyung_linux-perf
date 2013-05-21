@@ -339,6 +339,8 @@ add:
 				 G_CALLBACK(on_row_activated), NULL);
 	}
 
+	gtk_tree_view_set_rules_hint(GTK_TREE_VIEW(view), TRUE);
+
 	gtk_container_add(GTK_CONTAINER(window), view);
 }
 
