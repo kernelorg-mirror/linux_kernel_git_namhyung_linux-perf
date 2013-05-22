@@ -327,6 +327,13 @@ static void perf_gtk__show_hists(GtkWidget *window, struct hists *hists,
 		}
 	}
 
+	for (col_idx = 0; col_idx < nr_cols; col_idx++) {
+		GtkTreeViewColumn *column;
+
+		column = gtk_tree_view_get_column(GTK_TREE_VIEW(view), col_idx);
+		gtk_tree_view_column_set_resizable(column, TRUE);
+	}
+
 	g_signal_connect(view, "row-activated",
 			 G_CALLBACK(on_row_activated), NULL);
 	gtk_container_add(GTK_CONTAINER(window), view);
