@@ -124,6 +124,41 @@ void perf_gtk__init_hpp(void)
 				perf_gtk__hpp_color_overhead_guest_us;
 }
 
+static void callchain_list__sym_name(struct callchain_list *cl,
+				     char *bf, size_t bfsize)
+{
+	if (cl->ms.sym)
+		scnprintf(bf, bfsize, "%s", cl->ms.sym->name);
+	else
+		scnprintf(bf, bfsize, "%#" PRIx64, cl->ip);
+}
+
+static void perf_gtk__add_callchain(struct rb_root *root, GtkTreeStore *store,
+				    GtkTreeIter *parent, int col)
+{
+	struct rb_node *nd;
+
+	for (nd = rb_first(root); nd; nd = rb_next(nd)) {
+		struct callchain_node *node;
+		struct callchain_list *chain;
+		GtkTreeIter iter;
+
+		node = rb_entry(nd, struct callchain_node, rb_node);
+
+		list_for_each_entry(chain, &node->val, list) {
+			char buf[128];
+
+			gtk_tree_store_append(store, &iter, parent);
+
+			callchain_list__sym_name(chain, buf, sizeof(buf));
+			gtk_tree_store_set(store, &iter, col, buf, -1);
+		}
+
+		/* Now 'iter' contains info of the last callchain_list */
+		perf_gtk__add_callchain(&node->rb_root, store, &iter, col);
+	}
+}
+
 static void perf_gtk__show_hists(GtkWidget *window, struct hists *hists,
 				 float min_pcnt)
 {
@@ -156,6 +191,9 @@ static void perf_gtk__show_hists(GtkWidget *window, struct hists *hists,
 		col_types[nr_cols++] = G_TYPE_STRING;
 	}
 
+	if (symbol_conf.use_callchain && sort__has_sym)
+		col_types[nr_cols++] = G_TYPE_STRING;
+
 	store = gtk_tree_store_newv(nr_cols, col_types);
 
 	view = gtk_tree_view_new();
@@ -181,6 +219,23 @@ static void perf_gtk__show_hists(GtkWidget *window, struct hists *hists,
 							    -1, se->se_header,
 							    renderer, "text",
 							    col_idx++, NULL);
+	}
+
+	if (symbol_conf.use_callchain && sort__has_sym) {
+		GtkTreeViewColumn *chain_column;
+
+		chain_column = gtk_tree_view_column_new();
+
+		gtk_tree_view_column_set_title(chain_column, "Callchains");
+		gtk_tree_view_column_pack_start(chain_column, renderer, TRUE);
+		gtk_tree_view_column_add_attribute(chain_column, renderer,
+						   "text", col_idx++);
+
+		gtk_tree_view_insert_column(GTK_TREE_VIEW(view),
+					    chain_column, -1);
+
+		gtk_tree_view_set_expander_column(GTK_TREE_VIEW(view),
+						  chain_column);
 	}
 
 	gtk_tree_view_set_model(GTK_TREE_VIEW(view), GTK_TREE_MODEL(store));
@@ -220,6 +275,11 @@ static void perf_gtk__show_hists(GtkWidget *window, struct hists *hists,
 					hists__col_len(hists, se->se_width_idx));
 
 			gtk_tree_store_set(store, &iter, col_idx++, s, -1);
+		}
+
+		if (symbol_conf.use_callchain && sort__has_sym) {
+			gtk_tree_store_set(store, &iter, col_idx, "callchain", -1);
+			perf_gtk__add_callchain(&h->sorted_chain, store, &iter, col_idx);
 		}
 	}
 
