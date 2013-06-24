@@ -35,6 +35,7 @@ struct perf_ftrace {
 	struct perf_target target;
 	const char *tracer;
 	const char *dirname;
+	const char *clock;
 	struct pevent *pevent;
 	bool show_full_info;
 };
@@ -113,6 +114,9 @@ static int reset_tracing_files(struct perf_ftrace *ftrace __maybe_unused)
 	if (reset_tracing_cpu() < 0)
 		return -1;
 
+	if (write_tracing_file("trace_clock", "local") < 0)
+		return -1;
+
 	return 0;
 }
 
@@ -187,6 +191,24 @@ static int reset_tracing_cpu(void)
 	return 0;
 }
 
+static int set_tracing_clock(struct perf_ftrace *ftrace)
+{
+	const char *clock = ftrace->clock;
+
+	if (clock == NULL)
+		clock = "perf";
+
+	if (!write_tracing_file("trace_clock", clock))
+		return 0;
+
+	/* exit if user specified an invalid clock */
+	if (ftrace->clock)
+		return -1;
+
+	pr_debug("'perf' clock is not supported.. falling back to 'local' clock\n");
+	return write_tracing_file("trace_clock", "local");
+}
+
 static int setup_tracing_files(struct perf_ftrace *ftrace)
 {
 	int ret = -1;
@@ -209,6 +231,11 @@ static int setup_tracing_files(struct perf_ftrace *ftrace)
 
 	if (set_tracing_cpu(ftrace) < 0) {
 		pr_err("failed to set tracing cpumask\n");
+		goto out;
+	}
+
+	if (set_tracing_clock(ftrace) < 0) {
+		pr_err("failed to set trace clock\n");
 		goto out;
 	}
 
@@ -1445,6 +1472,8 @@ __cmd_ftrace_live(struct perf_ftrace *ftrace, int argc, const char **argv)
 		    "system-wide collection from all CPUs"),
 	OPT_STRING('C', "cpu", &ftrace->target.cpu_list, "cpu",
 		    "list of cpus to monitor"),
+	OPT_STRING('c', "clock", &ftrace->clock, "clock",
+		    "clock to be used for tracer"),
 	OPT_END()
 	};
 
@@ -1487,6 +1516,8 @@ __cmd_ftrace_record(struct perf_ftrace *ftrace, int argc, const char **argv)
 		    "list of cpus to monitor"),
 	OPT_STRING('o', "output", &ftrace->dirname, "dirname",
 		   "input directory name to use (default: perf.data)"),
+	OPT_STRING('c', "clock", &ftrace->clock, "clock",
+		    "clock to be used for tracer"),
 	OPT_END()
 	};
 
