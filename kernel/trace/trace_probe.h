@@ -81,10 +81,45 @@
  */
 #define convert_rloc_to_loc(dl, offs)	((u32)(dl) + (offs))
 
+static inline void *get_rloc_data(u32 *dl)
+{
+	return (u8 *)dl + get_rloc_offs(*dl);
+}
+
+/* For data_loc conversion */
+static inline void *get_loc_data(u32 *dl, void *ent)
+{
+	return (u8 *)ent + get_rloc_offs(*dl);
+}
+
+
+/* For defining macros, define string/string_size types */
+typedef u32 string;
+typedef u32 string_size;
+
 /* Data fetch function type */
 typedef	void (*fetch_func_t)(struct pt_regs *, void *, void *);
 /* Printing function type */
 typedef int (*print_type_func_t)(struct trace_seq *, const char *, void *, void *);
+
+/* Printing function type */
+#define PRINT_TYPE_FUNC_NAME(type)	print_type_##type
+#define PRINT_TYPE_FMT_NAME(type)	print_type_format_##type
+
+#define DECLARE_PRINT_TYPE_FUNC(type)					\
+extern int PRINT_TYPE_FUNC_NAME(type)(struct trace_seq *, const char *, \
+				     void *, void *);			\
+extern const char PRINT_TYPE_FMT_NAME(type)[]
+
+DECLARE_PRINT_TYPE_FUNC(u8);
+DECLARE_PRINT_TYPE_FUNC(u16);
+DECLARE_PRINT_TYPE_FUNC(u32);
+DECLARE_PRINT_TYPE_FUNC(u64);
+DECLARE_PRINT_TYPE_FUNC(s8);
+DECLARE_PRINT_TYPE_FUNC(s16);
+DECLARE_PRINT_TYPE_FUNC(s32);
+DECLARE_PRINT_TYPE_FUNC(s64);
+DECLARE_PRINT_TYPE_FUNC(string);
 
 /* Fetch types */
 enum {
@@ -123,6 +158,98 @@ struct probe_arg {
 	const char		*comm;	/* Command of this argument */
 	const struct fetch_type	*type;	/* Type of this argument */
 };
+
+#define FETCH_FUNC_NAME(method, type)	fetch_##method##_##type
+
+#define DECLARE_FETCH_FUNC(method, type)				\
+extern void FETCH_FUNC_NAME(method, type)(struct pt_regs *, void *, void *)
+
+#define DECLARE_BASIC_FETCH_FUNCS(method) 	\
+DECLARE_FETCH_FUNC(method, u8);	  		\
+DECLARE_FETCH_FUNC(method, u16);		\
+DECLARE_FETCH_FUNC(method, u32);		\
+DECLARE_FETCH_FUNC(method, u64)
+
+/*
+ * Declare fetch functions
+ */
+DECLARE_BASIC_FETCH_FUNCS(reg);
+#define fetch_reg_string		NULL
+#define fetch_reg_string_size		NULL
+
+DECLARE_BASIC_FETCH_FUNCS(stack);
+#define fetch_stack_string		NULL
+#define fetch_stack_string_size		NULL
+
+DECLARE_BASIC_FETCH_FUNCS(retval);
+#define fetch_retval_string		NULL
+#define fetch_retval_string_size	NULL
+
+DECLARE_BASIC_FETCH_FUNCS(memory);
+DECLARE_FETCH_FUNC(memory, string);
+DECLARE_FETCH_FUNC(memory, string_size);
+
+DECLARE_BASIC_FETCH_FUNCS(symbol);
+DECLARE_FETCH_FUNC(symbol, string);
+DECLARE_FETCH_FUNC(symbol, string_size);
+
+DECLARE_BASIC_FETCH_FUNCS(deref);
+DECLARE_FETCH_FUNC(deref, string);
+DECLARE_FETCH_FUNC(deref, string_size);
+
+DECLARE_BASIC_FETCH_FUNCS(bitfield);
+#define fetch_bitfield_string		NULL
+#define fetch_bitfield_string_size	NULL
+
+/*
+ * Define macro for basic types - we don't need to define s* types, because
+ * we have to care only about bitwidth at recording time.
+ */
+#define DEFINE_BASIC_FETCH_FUNCS(method) \
+DEFINE_FETCH_##method(u8)		\
+DEFINE_FETCH_##method(u16)		\
+DEFINE_FETCH_##method(u32)		\
+DEFINE_FETCH_##method(u64)
+
+#define CHECK_FETCH_FUNCS(method, fn)			\
+	(((FETCH_FUNC_NAME(method, u8) == fn) ||	\
+	  (FETCH_FUNC_NAME(method, u16) == fn) ||	\
+	  (FETCH_FUNC_NAME(method, u32) == fn) ||	\
+	  (FETCH_FUNC_NAME(method, u64) == fn) ||	\
+	  (FETCH_FUNC_NAME(method, string) == fn) ||	\
+	  (FETCH_FUNC_NAME(method, string_size) == fn)) \
+	 && (fn != NULL))
+
+#define ASSIGN_FETCH_FUNC(method, type)	\
+	[FETCH_MTD_##method] = FETCH_FUNC_NAME(method, type)
+
+#define __ASSIGN_FETCH_TYPE(_name, ptype, ftype, _size, sign, _fmttype)	\
+	{.name = _name,				\
+	 .size = _size,					\
+	 .is_signed = sign,				\
+	 .print = PRINT_TYPE_FUNC_NAME(ptype),		\
+	 .fmt = PRINT_TYPE_FMT_NAME(ptype),		\
+	 .fmttype = _fmttype,				\
+	 .fetch = {					\
+ASSIGN_FETCH_FUNC(reg, ftype),				\
+ASSIGN_FETCH_FUNC(stack, ftype),			\
+ASSIGN_FETCH_FUNC(retval, ftype),			\
+ASSIGN_FETCH_FUNC(memory, ftype),			\
+ASSIGN_FETCH_FUNC(symbol, ftype),			\
+ASSIGN_FETCH_FUNC(deref, ftype),			\
+ASSIGN_FETCH_FUNC(bitfield, ftype),			\
+	  }						\
+	}
+
+#define ASSIGN_FETCH_TYPE(ptype, ftype, sign)			\
+	__ASSIGN_FETCH_TYPE(#ptype, ptype, ftype, sizeof(ftype), sign, #ptype)
+
+#define FETCH_TYPE_STRING	0
+#define FETCH_TYPE_STRSIZE	1
+
+#define NR_FETCH_TYPES		10
+
+extern const struct fetch_type kprobes_fetch_type_table[];
 
 static inline __kprobes void call_fetch(struct fetch_param *fprm,
 				 struct pt_regs *regs, void *dest)
