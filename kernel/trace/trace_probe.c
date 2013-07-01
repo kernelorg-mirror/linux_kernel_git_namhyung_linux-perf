@@ -93,6 +93,8 @@ struct symbol_cache {
 	char		*symbol;
 	long		offset;
 	unsigned long	addr;
+	fetch_func_t	fetch;
+	fetch_func_t	fetch_size;
 };
 
 static unsigned long update_symbol_cache(struct symbol_cache *sc)
@@ -139,18 +141,29 @@ __kprobes void FETCH_FUNC_NAME(symbol, type)(struct pt_regs *regs,	\
 {									\
 	struct symbol_cache *sc = data;					\
 	if (sc->addr)							\
-		fetch_memory_##type(regs, (void *)sc->addr, dest);	\
+		sc->fetch(regs, (void *)sc->addr, dest);		\
 	else								\
 		*(type *)dest = 0;					\
 }
 DEFINE_BASIC_FETCH_FUNCS(symbol)
 DEFINE_FETCH_symbol(string)
-DEFINE_FETCH_symbol(string_size)
+
+__kprobes void FETCH_FUNC_NAME(symbol, string_size)(struct pt_regs *regs,
+						    void *data, void *dest)
+{
+	struct symbol_cache *sc = data;
+	if (sc->addr && sc->fetch_size)
+		sc->fetch_size(regs, (void *)sc->addr, dest);
+	else
+		*(string_size *)dest = 0;
+}
 
 /* Dereference memory access function */
 struct deref_fetch_param {
 	struct fetch_param	orig;
 	long			offset;
+	fetch_func_t		fetch;
+	fetch_func_t		fetch_size;
 };
 
 #define DEFINE_FETCH_deref(type)					\
@@ -162,13 +175,26 @@ __kprobes void FETCH_FUNC_NAME(deref, type)(struct pt_regs *regs,	\
 	call_fetch(&dprm->orig, regs, &addr);				\
 	if (addr) {							\
 		addr += dprm->offset;					\
-		fetch_memory_##type(regs, (void *)addr, dest);		\
+		dprm->fetch(regs, (void *)addr, dest);			\
 	} else								\
 		*(type *)dest = 0;					\
 }
 DEFINE_BASIC_FETCH_FUNCS(deref)
 DEFINE_FETCH_deref(string)
-DEFINE_FETCH_deref(string_size)
+
+__kprobes void FETCH_FUNC_NAME(deref, string_size)(struct pt_regs *regs,
+						   void *data, void *dest)
+{
+	struct deref_fetch_param *dprm = data;
+	unsigned long addr;
+
+	call_fetch(&dprm->orig, regs, &addr);
+	if (addr && dprm->fetch_size) {
+		addr += dprm->offset;
+		dprm->fetch_size(regs, (void *)addr, dest);
+	} else
+		*(string_size *)dest = 0;
+}
 
 static __kprobes void update_deref_fetch_param(struct deref_fetch_param *data)
 {
@@ -410,13 +436,20 @@ static int parse_probe_arg(char *arg, const struct fetch_type *t,
 			f->fn = t->fetch[FETCH_MTD_memory];
 			f->data = (void *)param;
 		} else {
+			struct symbol_cache *sc;
+
 			ret = traceprobe_split_symbol_offset(arg + 1, &offset);
 			if (ret)
 				break;
 
-			f->data = alloc_symbol_cache(arg + 1, offset);
-			if (f->data)
+			sc = alloc_symbol_cache(arg + 1, offset);
+			if (sc) {
 				f->fn = t->fetch[FETCH_MTD_symbol];
+				sc->fetch = t->fetch[FETCH_MTD_memory];
+				sc->fetch_size = get_fetch_size_function(t,
+							sc->fetch, ttbl);
+				f->data = sc;
+			}
 		}
 		break;
 
@@ -448,6 +481,9 @@ static int parse_probe_arg(char *arg, const struct fetch_type *t,
 				return -ENOMEM;
 
 			dprm->offset = offset;
+			dprm->fetch = t->fetch[FETCH_MTD_memory];
+			dprm->fetch_size = get_fetch_size_function(t,
+							dprm->fetch, ttbl);
 			ret = parse_probe_arg(arg, t2, &dprm->orig, is_return,
 							is_kprobe);
 			if (ret)
