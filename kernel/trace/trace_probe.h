@@ -297,3 +297,7 @@ extern ssize_t traceprobe_probes_write(struct file *file,
 		int (*createfn)(int, char**));
 
 extern int traceprobe_command(const char *buf, int (*createfn)(int, char**));
+
+extern int __get_data_size(struct trace_probe *tp, struct pt_regs *regs);
+extern void store_trace_args(int ent_size, struct trace_probe *tp,
+			     struct pt_regs *regs, u8 *data, int maxlen);
