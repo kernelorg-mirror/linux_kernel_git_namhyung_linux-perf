@@ -98,7 +98,7 @@ typedef u32 string;
 typedef u32 string_size;
 
 /* Data fetch function type */
-typedef	void (*fetch_func_t)(struct pt_regs *, void *, void *);
+typedef	void (*fetch_func_t)(struct pt_regs *, void *, void *, void *);
 /* Printing function type */
 typedef int (*print_type_func_t)(struct trace_seq *, const char *, void *, void *);
 
@@ -182,7 +182,8 @@ static inline bool trace_probe_is_registered(struct trace_probe *tp)
 #define FETCH_FUNC_NAME(method, type)	fetch_##method##_##type
 
 #define DECLARE_FETCH_FUNC(method, type)				\
-extern void FETCH_FUNC_NAME(method, type)(struct pt_regs *, void *, void *)
+extern void FETCH_FUNC_NAME(method, type)(struct pt_regs *, void *,	\
+					  void *, void *)
 
 #define DECLARE_BASIC_FETCH_FUNCS(method) 	\
 DECLARE_FETCH_FUNC(method, u8);	  		\
@@ -264,9 +265,9 @@ ASSIGN_FETCH_FUNC(bitfield, ftype),			\
 extern const struct fetch_type kprobes_fetch_type_table[];
 
 static inline __kprobes void call_fetch(struct fetch_param *fprm,
-				 struct pt_regs *regs, void *dest)
+				 struct pt_regs *regs, void *dest, void *priv)
 {
-	return fprm->fn(regs, fprm->data, dest);
+	return fprm->fn(regs, fprm->data, dest, priv);
 }
 
 /* Check the name is good for event/group/fields */
@@ -298,7 +299,9 @@ extern ssize_t traceprobe_probes_write(struct file *file,
 
 extern int traceprobe_command(const char *buf, int (*createfn)(int, char**));
 
-extern int __get_data_size(struct trace_probe *tp, struct pt_regs *regs);
+extern int __get_data_size(struct trace_probe *tp, struct pt_regs *regs,
+			   void *priv);
 extern void store_trace_args(int ent_size, struct trace_probe *tp,
-			     struct pt_regs *regs, u8 *data, int maxlen);
+			     struct pt_regs *regs, u8 *data, int maxlen,
+			     void *priv);
 extern int set_print_fmt(struct trace_probe *tp, bool is_return);

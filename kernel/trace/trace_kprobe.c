@@ -787,7 +787,7 @@ static const struct file_operations kprobe_profile_ops = {
  */
 #define DEFINE_FETCH_stack(type)					\
 static __kprobes void FETCH_FUNC_NAME(stack, type)(struct pt_regs *regs,\
-					  void *offset, void *dest)	\
+				  void *offset, void *dest, void *priv) \
 {									\
 	*(type *)dest = (type)regs_get_kernel_stack_nth(regs,		\
 				(unsigned int)((unsigned long)offset));	\
@@ -799,7 +799,7 @@ DEFINE_BASIC_FETCH_FUNCS(stack)
 
 #define DEFINE_FETCH_memory(type)					\
 static __kprobes void FETCH_FUNC_NAME(memory, type)(struct pt_regs *regs,\
-					  void *addr, void *dest)	\
+				    void *addr, void *dest, void *priv) \
 {									\
 	type retval;							\
 	if (probe_kernel_address(addr, retval))				\
@@ -813,7 +813,7 @@ DEFINE_BASIC_FETCH_FUNCS(memory)
  * length and relative data location.
  */
 static __kprobes void FETCH_FUNC_NAME(memory, string)(struct pt_regs *regs,
-					       void *addr, void *dest)
+					void *addr, void *dest, void *priv)
 {
 	long ret;
 	int maxlen = get_rloc_len(*(u32 *)dest);
@@ -850,7 +850,7 @@ static __kprobes void FETCH_FUNC_NAME(memory, string)(struct pt_regs *regs,
 
 /* Return the length of string -- including null terminal byte */
 static __kprobes void FETCH_FUNC_NAME(memory, string_size)(struct pt_regs *regs,
-						    void *addr, void *dest)
+					   void *addr, void *dest, void *priv)
 {
 	mm_segment_t old_fs;
 	int ret, len = 0;
@@ -912,7 +912,7 @@ __kprobe_trace_func(struct trace_kprobe *tp, struct pt_regs *regs,
 	local_save_flags(irq_flags);
 	pc = preempt_count();
 
-	dsize = __get_data_size(&tp->p, regs);
+	dsize = __get_data_size(&tp->p, regs, NULL);
 	size = sizeof(*entry) + tp->p.size + dsize;
 
 	event = trace_event_buffer_lock_reserve(&buffer, ftrace_file,
@@ -923,7 +923,8 @@ __kprobe_trace_func(struct trace_kprobe *tp, struct pt_regs *regs,
 
 	entry = ring_buffer_event_data(event);
 	entry->ip = (unsigned long)tp->rp.kp.addr;
-	store_trace_args(sizeof(*entry), &tp->p, regs, (u8 *)&entry[1], dsize);
+	store_trace_args(sizeof(*entry), &tp->p, regs, (u8 *)&entry[1], dsize,
+			 NULL);
 
 	if (!filter_current_check_discard(buffer, call, entry, event))
 		trace_buffer_unlock_commit_regs(buffer, event,
@@ -970,7 +971,7 @@ __kretprobe_trace_func(struct trace_kprobe *tp, struct kretprobe_instance *ri,
 	local_save_flags(irq_flags);
 	pc = preempt_count();
 
-	dsize = __get_data_size(&tp->p, regs);
+	dsize = __get_data_size(&tp->p, regs, NULL);
 	size = sizeof(*entry) + tp->p.size + dsize;
 
 	event = trace_event_buffer_lock_reserve(&buffer, ftrace_file,
@@ -982,7 +983,8 @@ __kretprobe_trace_func(struct trace_kprobe *tp, struct kretprobe_instance *ri,
 	entry = ring_buffer_event_data(event);
 	entry->func = (unsigned long)tp->rp.kp.addr;
 	entry->ret_ip = (unsigned long)ri->ret_addr;
-	store_trace_args(sizeof(*entry), &tp->p, regs, (u8 *)&entry[1], dsize);
+	store_trace_args(sizeof(*entry), &tp->p, regs, (u8 *)&entry[1], dsize,
+			 NULL);
 
 	if (!filter_current_check_discard(buffer, call, entry, event))
 		trace_buffer_unlock_commit_regs(buffer, event,
@@ -1148,7 +1150,7 @@ kprobe_perf_func(struct trace_kprobe *tp, struct pt_regs *regs)
 	int size, __size, dsize;
 	int rctx;
 
-	dsize = __get_data_size(&tp->p, regs);
+	dsize = __get_data_size(&tp->p, regs, NULL);
 	__size = sizeof(*entry) + tp->p.size + dsize;
 	size = ALIGN(__size + sizeof(u32), sizeof(u64));
 	size -= sizeof(u32);
@@ -1162,7 +1164,8 @@ kprobe_perf_func(struct trace_kprobe *tp, struct pt_regs *regs)
 
 	entry->ip = (unsigned long)tp->rp.kp.addr;
 	memset(&entry[1], 0, dsize);
-	store_trace_args(sizeof(*entry), &tp->p, regs, (u8 *)&entry[1], dsize);
+	store_trace_args(sizeof(*entry), &tp->p, regs, (u8 *)&entry[1], dsize,
+			 NULL);
 
 	head = this_cpu_ptr(call->perf_events);
 	perf_trace_buf_submit(entry, size, rctx,
@@ -1180,7 +1183,7 @@ kretprobe_perf_func(struct trace_kprobe *tp, struct kretprobe_instance *ri,
 	int size, __size, dsize;
 	int rctx;
 
-	dsize = __get_data_size(&tp->p, regs);
+	dsize = __get_data_size(&tp->p, regs, NULL);
 	__size = sizeof(*entry) + tp->p.size + dsize;
 	size = ALIGN(__size + sizeof(u32), sizeof(u64));
 	size -= sizeof(u32);
@@ -1194,7 +1197,8 @@ kretprobe_perf_func(struct trace_kprobe *tp, struct kretprobe_instance *ri,
 
 	entry->func = (unsigned long)tp->rp.kp.addr;
 	entry->ret_ip = (unsigned long)ri->ret_addr;
-	store_trace_args(sizeof(*entry), &tp->p, regs, (u8 *)&entry[1], dsize);
+	store_trace_args(sizeof(*entry), &tp->p, regs, (u8 *)&entry[1], dsize,
+			 NULL);
 
 	head = this_cpu_ptr(call->perf_events);
 	perf_trace_buf_submit(entry, size, rctx,

@@ -73,7 +73,7 @@ const char PRINT_TYPE_FMT_NAME(string)[] = "\\\"%s\\\"";
 /* Data fetch function templates */
 #define DEFINE_FETCH_reg(type)						\
 __kprobes void FETCH_FUNC_NAME(reg, type)(struct pt_regs *regs,		\
-					void *offset, void *dest)	\
+				  void *offset, void *dest, void *priv)	\
 {									\
 	*(type *)dest = (type)regs_get_register(regs,			\
 				(unsigned int)((unsigned long)offset));	\
@@ -82,7 +82,7 @@ DEFINE_BASIC_FETCH_FUNCS(reg)
 
 #define DEFINE_FETCH_retval(type)					\
 __kprobes void FETCH_FUNC_NAME(retval, type)(struct pt_regs *regs,	\
-					  void *dummy, void *dest)	\
+				   void *dummy, void *dest, void *priv)	\
 {									\
 	*(type *)dest = (type)regs_return_value(regs);			\
 }
@@ -137,11 +137,11 @@ static struct symbol_cache *alloc_symbol_cache(const char *sym, long offset)
 
 #define DEFINE_FETCH_symbol(type)					\
 __kprobes void FETCH_FUNC_NAME(symbol, type)(struct pt_regs *regs,	\
-					  void *data, void *dest)	\
+				    void *data, void *dest, void *priv)	\
 {									\
 	struct symbol_cache *sc = data;					\
 	if (sc->addr)							\
-		sc->fetch(regs, (void *)sc->addr, dest);		\
+		sc->fetch(regs, (void *)sc->addr, dest, priv);		\
 	else								\
 		*(type *)dest = 0;					\
 }
@@ -149,11 +149,11 @@ DEFINE_BASIC_FETCH_FUNCS(symbol)
 DEFINE_FETCH_symbol(string)
 
 __kprobes void FETCH_FUNC_NAME(symbol, string_size)(struct pt_regs *regs,
-						    void *data, void *dest)
+					void *data, void *dest, void *priv)
 {
 	struct symbol_cache *sc = data;
 	if (sc->addr && sc->fetch_size)
-		sc->fetch_size(regs, (void *)sc->addr, dest);
+		sc->fetch_size(regs, (void *)sc->addr, dest, priv);
 	else
 		*(string_size *)dest = 0;
 }
@@ -168,14 +168,14 @@ struct deref_fetch_param {
 
 #define DEFINE_FETCH_deref(type)					\
 __kprobes void FETCH_FUNC_NAME(deref, type)(struct pt_regs *regs,	\
-					    void *data, void *dest)	\
+				    void *data, void *dest, void *priv)	\
 {									\
 	struct deref_fetch_param *dprm = data;				\
 	unsigned long addr;						\
-	call_fetch(&dprm->orig, regs, &addr);				\
+	call_fetch(&dprm->orig, regs, &addr, priv);			\
 	if (addr) {							\
 		addr += dprm->offset;					\
-		dprm->fetch(regs, (void *)addr, dest);			\
+		dprm->fetch(regs, (void *)addr, dest, priv);		\
 	} else								\
 		*(type *)dest = 0;					\
 }
@@ -183,15 +183,15 @@ DEFINE_BASIC_FETCH_FUNCS(deref)
 DEFINE_FETCH_deref(string)
 
 __kprobes void FETCH_FUNC_NAME(deref, string_size)(struct pt_regs *regs,
-						   void *data, void *dest)
+					void *data, void *dest, void *priv)
 {
 	struct deref_fetch_param *dprm = data;
 	unsigned long addr;
 
-	call_fetch(&dprm->orig, regs, &addr);
+	call_fetch(&dprm->orig, regs, &addr, priv);
 	if (addr && dprm->fetch_size) {
 		addr += dprm->offset;
-		dprm->fetch_size(regs, (void *)addr, dest);
+		dprm->fetch_size(regs, (void *)addr, dest, priv);
 	} else
 		*(string_size *)dest = 0;
 }
@@ -221,12 +221,12 @@ struct bitfield_fetch_param {
 };
 
 #define DEFINE_FETCH_bitfield(type)					\
-__kprobes void FETCH_FUNC_NAME(bitfield, type)(struct pt_regs *regs,\
-					    void *data, void *dest)	\
+__kprobes void FETCH_FUNC_NAME(bitfield, type)(struct pt_regs *regs,	\
+				    void *data, void *dest, void *priv)	\
 {									\
 	struct bitfield_fetch_param *bprm = data;			\
 	type buf = 0;							\
-	call_fetch(&bprm->orig, regs, &buf);				\
+	call_fetch(&bprm->orig, regs, &buf, priv);			\
 	if (buf) {							\
 		buf <<= bprm->hi_shift;					\
 		buf >>= bprm->low_shift;				\
@@ -314,7 +314,7 @@ fail:
 
 /* Special function : only accept unsigned long */
 static __kprobes void fetch_stack_address(struct pt_regs *regs,
-					void *dummy, void *dest)
+					  void *dummy, void *dest, void *priv)
 {
 	*(unsigned long *)dest = kernel_stack_pointer(regs);
 }
@@ -703,14 +703,15 @@ out:
 }
 
 /* Sum up total data length for dynamic arraies (strings) */
-__kprobes int __get_data_size(struct trace_probe *tp, struct pt_regs *regs)
+__kprobes int __get_data_size(struct trace_probe *tp, struct pt_regs *regs,
+			      void *priv)
 {
 	int i, ret = 0;
 	u32 len;
 
 	for (i = 0; i < tp->nr_args; i++)
 		if (unlikely(tp->args[i].fetch_size.fn)) {
-			call_fetch(&tp->args[i].fetch_size, regs, &len);
+			call_fetch(&tp->args[i].fetch_size, regs, &len, priv);
 			ret += len;
 		}
 
@@ -719,7 +720,8 @@ __kprobes int __get_data_size(struct trace_probe *tp, struct pt_regs *regs)
 
 /* Store the value of each argument */
 __kprobes void store_trace_args(int ent_size, struct trace_probe *tp,
-				struct pt_regs *regs, u8 *data, int maxlen)
+				struct pt_regs *regs, u8 *data, int maxlen,
+				void *priv)
 {
 	int i;
 	u32 end = tp->size;
@@ -734,7 +736,7 @@ __kprobes void store_trace_args(int ent_size, struct trace_probe *tp,
 			dl = (u32 *)(data + tp->args[i].offset);
 			*dl = make_data_rloc(maxlen, end - tp->args[i].offset);
 			/* Then try to fetch string or dynamic array data */
-			call_fetch(&tp->args[i].fetch, regs, dl);
+			call_fetch(&tp->args[i].fetch, regs, dl, priv);
 			/* Reduce maximum length */
 			end += get_rloc_len(*dl);
 			maxlen -= get_rloc_len(*dl);
@@ -744,7 +746,7 @@ __kprobes void store_trace_args(int ent_size, struct trace_probe *tp,
 		} else
 			/* Just fetching data normally */
 			call_fetch(&tp->args[i].fetch, regs,
-				   data + tp->args[i].offset);
+				   data + tp->args[i].offset, priv);
 	}
 }
 
