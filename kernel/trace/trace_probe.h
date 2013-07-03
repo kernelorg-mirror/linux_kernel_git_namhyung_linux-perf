@@ -98,7 +98,7 @@ typedef u32 string;
 typedef u32 string_size;
 
 /* Data fetch function type */
-typedef	void (*fetch_func_t)(struct pt_regs *, void *, void *);
+typedef	void (*fetch_func_t)(struct pt_regs *, void *, void *, void *);
 /* Printing function type */
 typedef int (*print_type_func_t)(struct trace_seq *, const char *, void *, void *);
 
@@ -182,7 +182,8 @@ static inline bool trace_probe_is_registered(struct trace_probe *tp)
 #define FETCH_FUNC_NAME(method, type)	fetch_##method##_##type
 
 #define DECLARE_FETCH_FUNC(method, type)				\
-extern void FETCH_FUNC_NAME(method, type)(struct pt_regs *, void *, void *)
+extern void FETCH_FUNC_NAME(method, type)(struct pt_regs *, void *,	\
+					  void *, void *)
 
 #define DECLARE_BASIC_FETCH_FUNCS(method) 	\
 DECLARE_FETCH_FUNC(method, u8);	  		\
@@ -264,9 +265,9 @@ ASSIGN_FETCH_FUNC(bitfield, ftype),			\
 extern const struct fetch_type kprobes_fetch_type_table[];
 
 static inline __kprobes void call_fetch(struct fetch_param *fprm,
-				 struct pt_regs *regs, void *dest)
+				 struct pt_regs *regs, void *dest, void *priv)
 {
-	return fprm->fn(regs, fprm->data, dest);
+	return fprm->fn(regs, fprm->data, dest, priv);
 }
 
 struct symbol_cache;
@@ -305,14 +306,14 @@ extern int traceprobe_command(const char *buf, int (*createfn)(int, char**));
 
 /* Sum up total data length for dynamic arraies (strings) */
 static inline __kprobes int
-__get_data_size(struct trace_probe *tp, struct pt_regs *regs)
+__get_data_size(struct trace_probe *tp, struct pt_regs *regs, void *priv)
 {
 	int i, ret = 0;
 	u32 len;
 
 	for (i = 0; i < tp->nr_args; i++)
 		if (unlikely(tp->args[i].fetch_size.fn)) {
-			call_fetch(&tp->args[i].fetch_size, regs, &len);
+			call_fetch(&tp->args[i].fetch_size, regs, &len, priv);
 			ret += len;
 		}
 
@@ -322,7 +323,7 @@ __get_data_size(struct trace_probe *tp, struct pt_regs *regs)
 /* Store the value of each argument */
 static inline __kprobes void
 store_trace_args(int ent_size, struct trace_probe *tp, struct pt_regs *regs,
-		 u8 *data, int maxlen)
+		 u8 *data, int maxlen, void *priv)
 {
 	int i;
 	u32 end = tp->size;
@@ -337,7 +338,7 @@ store_trace_args(int ent_size, struct trace_probe *tp, struct pt_regs *regs,
 			dl = (u32 *)(data + tp->args[i].offset);
 			*dl = make_data_rloc(maxlen, end - tp->args[i].offset);
 			/* Then try to fetch string or dynamic array data */
-			call_fetch(&tp->args[i].fetch, regs, dl);
+			call_fetch(&tp->args[i].fetch, regs, dl, priv);
 			/* Reduce maximum length */
 			end += get_rloc_len(*dl);
 			maxlen -= get_rloc_len(*dl);
@@ -347,7 +348,7 @@ store_trace_args(int ent_size, struct trace_probe *tp, struct pt_regs *regs,
 		} else
 			/* Just fetching data normally */
 			call_fetch(&tp->args[i].fetch, regs,
-				   data + tp->args[i].offset);
+				   data + tp->args[i].offset, priv);
 	}
 }
 

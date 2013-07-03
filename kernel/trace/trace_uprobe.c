@@ -546,7 +546,7 @@ static void uprobe_trace_print(struct trace_uprobe *tu,
 	int cpu;
 	struct ftrace_event_call *call = &tu->p.call;
 
-	dsize = __get_data_size(&tu->p, regs);
+	dsize = __get_data_size(&tu->p, regs, NULL);
 	esize = SIZEOF_TRACE_ENTRY(is_ret_probe(tu));
 
 	if (WARN_ON_ONCE(!uprobe_cpu_buffer || tu->p.size + dsize > PAGE_SIZE))
@@ -561,7 +561,7 @@ static void uprobe_trace_print(struct trace_uprobe *tu,
 	 * so the mutex makes sure we have sole access to it.
 	 */
 	mutex_lock(mutex);
-	store_trace_args(esize, &tu->p, regs, arg_buf, dsize);
+	store_trace_args(esize, &tu->p, regs, arg_buf, dsize, NULL);
 
 	size = esize + tu->p.size + dsize;
 	event = trace_current_buffer_lock_reserve(&buffer, call->event.type,
@@ -822,7 +822,7 @@ static void uprobe_perf_print(struct trace_uprobe *tu,
 	int cpu;
 	int rctx;
 
-	dsize = __get_data_size(&tu->p, regs);
+	dsize = __get_data_size(&tu->p, regs, NULL);
 	esize = SIZEOF_TRACE_ENTRY(is_ret_probe(tu));
 
 	if (WARN_ON_ONCE(!uprobe_cpu_buffer))
@@ -842,7 +842,7 @@ static void uprobe_perf_print(struct trace_uprobe *tu,
 	 * so the mutex makes sure we have sole access to it.
 	 */
 	mutex_lock(mutex);
-	store_trace_args(esize, &tu->p, regs, arg_buf, dsize);
+	store_trace_args(esize, &tu->p, regs, arg_buf, dsize, NULL);
 
 	preempt_disable();
 	head = this_cpu_ptr(call->perf_events);
