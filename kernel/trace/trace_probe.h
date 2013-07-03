@@ -263,6 +263,7 @@ ASSIGN_FETCH_FUNC(bitfield, ftype),			\
 #define NR_FETCH_TYPES		10
 
 extern const struct fetch_type kprobes_fetch_type_table[];
+extern const struct fetch_type uprobes_fetch_type_table[];
 
 static inline __kprobes void call_fetch(struct fetch_param *fprm,
 				 struct pt_regs *regs, void *dest, void *priv)
