@@ -520,7 +520,7 @@ static void uprobe_trace_print(struct trace_uprobe *tu,
 	int size, dsize, esize;
 	struct ftrace_event_call *call = &tu->p.call;
 
-	dsize = __get_data_size(&tu->p, regs);
+	dsize = __get_data_size(&tu->p, regs, NULL);
 	esize = SIZEOF_TRACE_ENTRY(is_ret_probe(tu));
 
 	/*
@@ -532,7 +532,7 @@ static void uprobe_trace_print(struct trace_uprobe *tu,
 	if (tmp == NULL)
 		return;
 
-	store_trace_args(esize, &tu->p, regs, tmp, dsize);
+	store_trace_args(esize, &tu->p, regs, tmp, dsize, NULL);
 
 	size = esize + tu->p.size + dsize;
 	event = trace_current_buffer_lock_reserve(&buffer, call->event.type,
@@ -775,7 +775,7 @@ static void uprobe_perf_print(struct trace_uprobe *tu,
 	int size, dsize, esize;
 	int rctx;
 
-	dsize = __get_data_size(&tu->p, regs);
+	dsize = __get_data_size(&tu->p, regs, NULL);
 	esize = SIZEOF_TRACE_ENTRY(is_ret_probe(tu));
 
 	/*
@@ -787,7 +787,7 @@ static void uprobe_perf_print(struct trace_uprobe *tu,
 	if (tmp == NULL)
 		return;
 
-	store_trace_args(esize, &tu->p, regs, tmp, dsize);
+	store_trace_args(esize, &tu->p, regs, tmp, dsize, NULL);
 
 	size = esize + tu->p.size + dsize;
 	size = ALIGN(size + sizeof(u32), sizeof(u64)) - sizeof(u32);
