@@ -301,3 +301,4 @@ extern int traceprobe_command(const char *buf, int (*createfn)(int, char**));
 extern int __get_data_size(struct trace_probe *tp, struct pt_regs *regs);
 extern void store_trace_args(int ent_size, struct trace_probe *tp,
 			     struct pt_regs *regs, u8 *data, int maxlen);
+extern int set_print_fmt(struct trace_probe *tp, bool is_return);
