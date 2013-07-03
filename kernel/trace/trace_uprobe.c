@@ -514,15 +514,31 @@ static void uprobe_trace_print(struct trace_uprobe *tu,
 	struct uprobe_trace_entry_head *entry;
 	struct ring_buffer_event *event;
 	struct ring_buffer *buffer;
-	void *data;
-	int size, i;
+	void *data, *tmp;
+	int size, dsize, esize;
 	struct ftrace_event_call *call = &tu->p.call;
 
-	size = SIZEOF_TRACE_ENTRY(is_ret_probe(tu));
-	event = trace_current_buffer_lock_reserve(&buffer, call->event.type,
-						  size + tu->p.size, 0, 0);
-	if (!event)
+	dsize = __get_data_size(&tu->p, regs);
+	esize = SIZEOF_TRACE_ENTRY(is_ret_probe(tu));
+
+	/*
+	 * A temporary buffer is used for storing fetched data before reserving
+	 * the ring buffer because fetching from user space should be done in a
+	 * non-atomic context.
+	 */
+	tmp = kmalloc(tu->p.size + dsize, GFP_KERNEL);
+	if (tmp == NULL)
 		return;
+
+	store_trace_args(esize, &tu->p, regs, tmp, dsize);
+
+	size = esize + tu->p.size + dsize;
+	event = trace_current_buffer_lock_reserve(&buffer, call->event.type,
+						  size, 0, 0);
+	if (!event) {
+		kfree(tmp);
+		return;
+	}
 
 	entry = ring_buffer_event_data(event);
 	if (is_ret_probe(tu)) {
@@ -534,13 +550,12 @@ static void uprobe_trace_print(struct trace_uprobe *tu,
 		data = DATAOF_TRACE_ENTRY(entry, false);
 	}
 
-	for (i = 0; i < tu->p.nr_args; i++) {
-		call_fetch(&tu->p.args[i].fetch, regs,
-			   data + tu->p.args[i].offset);
-	}
+	memcpy(data, tmp, tu->p.size + dsize);
 
 	if (!filter_current_check_discard(buffer, call, entry, event))
 		trace_buffer_unlock_commit(buffer, event, 0, 0);
+
+	kfree(tmp);
 }
 
 /* uprobe handler */
@@ -754,13 +769,30 @@ static void uprobe_perf_print(struct trace_uprobe *tu,
 	struct ftrace_event_call *call = &tu->p.call;
 	struct uprobe_trace_entry_head *entry;
 	struct hlist_head *head;
-	void *data;
-	int size, rctx, i;
+	void *data, *tmp;
+	int size, dsize, esize;
+	int rctx;
 
-	size = SIZEOF_TRACE_ENTRY(is_ret_probe(tu));
-	size = ALIGN(size + tu->p.size + sizeof(u32), sizeof(u64)) - sizeof(u32);
-	if (WARN_ONCE(size > PERF_MAX_TRACE_SIZE, "profile buffer not large enough"))
+	dsize = __get_data_size(&tu->p, regs);
+	esize = SIZEOF_TRACE_ENTRY(is_ret_probe(tu));
+
+	/*
+	 * A temporary buffer is used for storing fetched data before reserving
+	 * the ring buffer because fetching from user space should be done in a
+	 * non-atomic context.
+	 */
+	tmp = kmalloc(tu->p.size + dsize, GFP_KERNEL);
+	if (tmp == NULL)
 		return;
+
+	store_trace_args(esize, &tu->p, regs, tmp, dsize);
+
+	size = esize + tu->p.size + dsize;
+	size = ALIGN(size + + sizeof(u32), sizeof(u64)) - sizeof(u32);
+	if (WARN_ONCE(size > PERF_MAX_TRACE_SIZE, "profile buffer not large enough")) {
+		kfree(tmp);
+		return;
+	}
 
 	preempt_disable();
 	head = this_cpu_ptr(call->perf_events);
@@ -780,15 +812,18 @@ static void uprobe_perf_print(struct trace_uprobe *tu,
 		data = DATAOF_TRACE_ENTRY(entry, false);
 	}
 
-	for (i = 0; i < tu->p.nr_args; i++) {
-		struct probe_arg *parg = &tu->p.args[i];
+	memcpy(data, tmp, tu->p.size + dsize);
 
-		call_fetch(&parg->fetch, regs, data + parg->offset);
+	if (size - esize > tu->p.size + dsize) {
+		int len = tu->p.size + dsize;
+
+		memset(data + len, 0, size - esize - len);
 	}
 
 	perf_trace_buf_submit(entry, size, rctx, 0, 1, regs, head, NULL);
  out:
 	preempt_enable();
+	kfree(tmp);
 }
 
 /* uprobe profile handler */
