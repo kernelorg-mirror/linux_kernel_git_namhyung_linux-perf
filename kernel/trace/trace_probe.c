@@ -78,7 +78,7 @@ const char PRINT_TYPE_FMT_NAME(string)[] = "\\\"%s\\\"";
 /* Data fetch function templates */
 #define DEFINE_FETCH_reg(type)						\
 __kprobes void FETCH_FUNC_NAME(reg, type)(struct pt_regs *regs,		\
-					void *offset, void *dest)	\
+				  void *offset, void *dest, void *priv)	\
 {									\
 	*(type *)dest = (type)regs_get_register(regs,			\
 				(unsigned int)((unsigned long)offset));	\
@@ -87,7 +87,7 @@ DEFINE_BASIC_FETCH_FUNCS(reg)
 
 #define DEFINE_FETCH_retval(type)					\
 __kprobes void FETCH_FUNC_NAME(retval, type)(struct pt_regs *regs,	\
-					  void *dummy, void *dest)	\
+				   void *dummy, void *dest, void *priv)	\
 {									\
 	*(type *)dest = (type)regs_return_value(regs);			\
 }
@@ -103,14 +103,14 @@ struct deref_fetch_param {
 
 #define DEFINE_FETCH_deref(type)					\
 __kprobes void FETCH_FUNC_NAME(deref, type)(struct pt_regs *regs,	\
-					    void *data, void *dest)	\
+				    void *data, void *dest, void *priv)	\
 {									\
 	struct deref_fetch_param *dprm = data;				\
 	unsigned long addr;						\
-	call_fetch(&dprm->orig, regs, &addr);				\
+	call_fetch(&dprm->orig, regs, &addr, priv);			\
 	if (addr) {							\
 		addr += dprm->offset;					\
-		dprm->fetch(regs, (void *)addr, dest);			\
+		dprm->fetch(regs, (void *)addr, dest, priv);		\
 	} else								\
 		*(type *)dest = 0;					\
 }
@@ -118,15 +118,15 @@ DEFINE_BASIC_FETCH_FUNCS(deref)
 DEFINE_FETCH_deref(string)
 
 __kprobes void FETCH_FUNC_NAME(deref, string_size)(struct pt_regs *regs,
-						   void *data, void *dest)
+					void *data, void *dest, void *priv)
 {
 	struct deref_fetch_param *dprm = data;
 	unsigned long addr;
 
-	call_fetch(&dprm->orig, regs, &addr);
+	call_fetch(&dprm->orig, regs, &addr, priv);
 	if (addr && dprm->fetch_size) {
 		addr += dprm->offset;
-		dprm->fetch_size(regs, (void *)addr, dest);
+		dprm->fetch_size(regs, (void *)addr, dest, priv);
 	} else
 		*(string_size *)dest = 0;
 }
@@ -156,12 +156,12 @@ struct bitfield_fetch_param {
 };
 
 #define DEFINE_FETCH_bitfield(type)					\
-__kprobes void FETCH_FUNC_NAME(bitfield, type)(struct pt_regs *regs,\
-					    void *data, void *dest)	\
+__kprobes void FETCH_FUNC_NAME(bitfield, type)(struct pt_regs *regs,	\
+				    void *data, void *dest, void *priv)	\
 {									\
 	struct bitfield_fetch_param *bprm = data;			\
 	type buf = 0;							\
-	call_fetch(&bprm->orig, regs, &buf);				\
+	call_fetch(&bprm->orig, regs, &buf, priv);			\
 	if (buf) {							\
 		buf <<= bprm->hi_shift;					\
 		buf >>= bprm->low_shift;				\
@@ -249,7 +249,7 @@ fail:
 
 /* Special function : only accept unsigned long */
 static __kprobes void fetch_stack_address(struct pt_regs *regs,
-					void *dummy, void *dest)
+					  void *dummy, void *dest, void *priv)
 {
 	*(unsigned long *)dest = kernel_stack_pointer(regs);
 }
