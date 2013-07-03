@@ -166,6 +166,10 @@ struct deref_fetch_param {
 	fetch_func_t		fetch_size;
 };
 
+/*
+ * For uprobes, it'll get a vaddr from first call_fetch() so pass NULL
+ * as a priv on the second dprm->fetch() not to translate it to vaddr again.
+ */
 #define DEFINE_FETCH_deref(type)					\
 __kprobes void FETCH_FUNC_NAME(deref, type)(struct pt_regs *regs,	\
 				    void *data, void *dest, void *priv)	\
@@ -175,13 +179,14 @@ __kprobes void FETCH_FUNC_NAME(deref, type)(struct pt_regs *regs,	\
 	call_fetch(&dprm->orig, regs, &addr, priv);			\
 	if (addr) {							\
 		addr += dprm->offset;					\
-		dprm->fetch(regs, (void *)addr, dest, priv);		\
+		dprm->fetch(regs, (void *)addr, dest, NULL);		\
 	} else								\
 		*(type *)dest = 0;					\
 }
 DEFINE_BASIC_FETCH_FUNCS(deref)
 DEFINE_FETCH_deref(string)
 
+/* Same as above */
 __kprobes void FETCH_FUNC_NAME(deref, string_size)(struct pt_regs *regs,
 					void *data, void *dest, void *priv)
 {
@@ -191,7 +196,7 @@ __kprobes void FETCH_FUNC_NAME(deref, string_size)(struct pt_regs *regs,
 	call_fetch(&dprm->orig, regs, &addr, priv);
 	if (addr && dprm->fetch_size) {
 		addr += dprm->offset;
-		dprm->fetch_size(regs, (void *)addr, dest, priv);
+		dprm->fetch_size(regs, (void *)addr, dest, NULL);
 	} else
 		*(string_size *)dest = 0;
 }
