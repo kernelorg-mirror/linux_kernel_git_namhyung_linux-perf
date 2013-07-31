@@ -49,14 +49,19 @@ static __kprobes int PRINT_TYPE_FUNC_NAME(type)(struct trace_seq *s,	\
 }									\
 static const char PRINT_TYPE_FMT_NAME(type)[] = fmt;
 
-DEFINE_BASIC_PRINT_TYPE_FUNC(u8, "%x", unsigned int)
-DEFINE_BASIC_PRINT_TYPE_FUNC(u16, "%x", unsigned int)
-DEFINE_BASIC_PRINT_TYPE_FUNC(u32, "%lx", unsigned long)
+DEFINE_BASIC_PRINT_TYPE_FUNC(u8 , "%x", unsigned char)
+DEFINE_BASIC_PRINT_TYPE_FUNC(u16, "%x", unsigned short)
+DEFINE_BASIC_PRINT_TYPE_FUNC(u32, "%x", unsigned int)
+DEFINE_BASIC_PRINT_TYPE_FUNC(s8,  "%d", signed char)
+DEFINE_BASIC_PRINT_TYPE_FUNC(s16, "%d", short)
+DEFINE_BASIC_PRINT_TYPE_FUNC(s32, "%d", int)
+#if BITS_PER_LONG == 32
 DEFINE_BASIC_PRINT_TYPE_FUNC(u64, "%llx", unsigned long long)
-DEFINE_BASIC_PRINT_TYPE_FUNC(s8, "%d", int)
-DEFINE_BASIC_PRINT_TYPE_FUNC(s16, "%d", int)
-DEFINE_BASIC_PRINT_TYPE_FUNC(s32, "%ld", long)
 DEFINE_BASIC_PRINT_TYPE_FUNC(s64, "%lld", long long)
+#else /* BITS_PER_LONG == 64 */
+DEFINE_BASIC_PRINT_TYPE_FUNC(u64, "%lx", unsigned long)
+DEFINE_BASIC_PRINT_TYPE_FUNC(s64, "%ld", long)
+#endif
 
 static inline void *get_rloc_data(u32 *dl)
 {
