@@ -284,7 +284,9 @@ void get_term_dimensions(struct winsize *ws);
 
 #define SRCLINE_UNKNOWN  ((char *) "??:0")
 
-char *get_srcline(const char *dso_name, unsigned long addr);
+struct dso;
+
+char *get_srcline(struct dso *dso, unsigned long addr);
 void free_srcline(char *srcline);
 
 #endif /* GIT_COMPAT_UTIL_H */
