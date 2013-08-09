@@ -758,7 +758,7 @@ static const struct file_operations kprobe_profile_ops = {
  * kprobes-specific fetch functions
  */
 #define DEFINE_FETCH_stack(type)					\
-__kprobes void FETCH_FUNC_NAME(stack, type)(struct pt_regs *regs,	\
+static __kprobes void FETCH_FUNC_NAME(stack, type)(struct pt_regs *regs,\
 					  void *offset, void *dest)	\
 {									\
 	*(type *)dest = (type)regs_get_kernel_stack_nth(regs,		\
@@ -770,7 +770,7 @@ DEFINE_BASIC_FETCH_FUNCS(stack)
 #define fetch_stack_string_size	NULL
 
 #define DEFINE_FETCH_memory(type)					\
-__kprobes void FETCH_FUNC_NAME(memory, type)(struct pt_regs *regs,	\
+static __kprobes void FETCH_FUNC_NAME(memory, type)(struct pt_regs *regs,\
 					  void *addr, void *dest)	\
 {									\
 	type retval;							\
@@ -784,7 +784,7 @@ DEFINE_BASIC_FETCH_FUNCS(memory)
  * Fetch a null-terminated string. Caller MUST set *(u32 *)dest with max
  * length and relative data location.
  */
-__kprobes void FETCH_FUNC_NAME(memory, string)(struct pt_regs *regs,
+static __kprobes void FETCH_FUNC_NAME(memory, string)(struct pt_regs *regs,
 					       void *addr, void *dest)
 {
 	long ret;
@@ -821,7 +821,7 @@ __kprobes void FETCH_FUNC_NAME(memory, string)(struct pt_regs *regs,
 }
 
 /* Return the length of string -- including null terminal byte */
-__kprobes void FETCH_FUNC_NAME(memory, string_size)(struct pt_regs *regs,
+static __kprobes void FETCH_FUNC_NAME(memory, string_size)(struct pt_regs *regs,
 						    void *addr, void *dest)
 {
 	mm_segment_t old_fs;

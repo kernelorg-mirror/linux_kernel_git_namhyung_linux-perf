@@ -177,17 +177,9 @@ DECLARE_BASIC_FETCH_FUNCS(reg);
 #define fetch_reg_string		NULL
 #define fetch_reg_string_size		NULL
 
-DECLARE_BASIC_FETCH_FUNCS(stack);
-#define fetch_stack_string		NULL
-#define fetch_stack_string_size		NULL
-
 DECLARE_BASIC_FETCH_FUNCS(retval);
 #define fetch_retval_string		NULL
 #define fetch_retval_string_size	NULL
-
-DECLARE_BASIC_FETCH_FUNCS(memory);
-DECLARE_FETCH_FUNC(memory, string);
-DECLARE_FETCH_FUNC(memory, string_size);
 
 DECLARE_BASIC_FETCH_FUNCS(symbol);
 DECLARE_FETCH_FUNC(symbol, string);
