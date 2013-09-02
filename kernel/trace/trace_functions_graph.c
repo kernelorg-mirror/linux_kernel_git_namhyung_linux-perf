@@ -114,16 +114,22 @@ ftrace_push_return_trace(unsigned long ret, unsigned long func, int *depth,
 		return -EBUSY;
 	}
 
+	/* The function was filtered out */
+	if (current->curr_ret_stack < -1)
+		return -EBUSY;
+
 	calltime = trace_clock_local();
 
 	index = ++current->curr_ret_stack;
+	if (ftrace_graph_notrace_addr(func))
+		current->curr_ret_stack -= FTRACE_NOTRACE_DEPTH;
 	barrier();
 	current->ret_stack[index].ret = ret;
 	current->ret_stack[index].func = func;
 	current->ret_stack[index].calltime = calltime;
 	current->ret_stack[index].subtime = 0;
 	current->ret_stack[index].fp = frame_pointer;
-	*depth = index;
+	*depth = current->curr_ret_stack;
 
 	return 0;
 }
@@ -136,6 +142,9 @@ ftrace_pop_return_trace(struct ftrace_graph_ret *trace, unsigned long *ret,
 	int index;
 
 	index = current->curr_ret_stack;
+
+	if (index < 0)
+		index += FTRACE_NOTRACE_DEPTH;
 
 	if (unlikely(index < 0)) {
 		ftrace_graph_stop();
@@ -193,6 +202,10 @@ unsigned long ftrace_return_to_handler(unsigned long frame_pointer)
 	trace.rettime = trace_clock_local();
 	barrier();
 	current->curr_ret_stack--;
+	if (current->curr_ret_stack < -1) {
+		current->curr_ret_stack += FTRACE_NOTRACE_DEPTH;
+		return ret;
+	}
 
 	/*
 	 * The trace should run after decrementing the ret counter
@@ -259,9 +272,13 @@ int trace_graph_entry(struct ftrace_graph_ent *trace)
 
 	/* trace it when it is-nested-in or is a function enabled. */
 	if ((!(trace->depth || ftrace_graph_addr(trace->func)) ||
-	     ftrace_graph_ignore_irqs()) ||
+	     ftrace_graph_ignore_irqs()) || (trace->depth < 0) ||
 	    (max_depth && trace->depth >= max_depth))
 		return 0;
+
+	/* need to reserve a ret_stack entry to recover the depth */
+	if (ftrace_graph_notrace_addr(trace->func))
+		return 1;
 
 	local_irq_save(flags);
 	cpu = raw_smp_processor_id();
