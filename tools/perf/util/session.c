@@ -503,11 +503,13 @@ static int flush_sample_queue(struct perf_session *s,
 	struct perf_sample sample;
 	u64 limit = os->next_flush;
 	u64 last_ts = os->last_sample ? os->last_sample->timestamp : 0ULL;
-	unsigned idx = 0, progress_next = os->nr_samples / 16;
+	struct perf_progress prog;
 	int ret;
 
 	if (!tool->ordered_samples || !limit)
 		return 0;
+
+	ui_progress__setup(&prog, os->nr_samples);
 
 	list_for_each_entry_safe(iter, tmp, head, list) {
 		if (iter->timestamp > limit)
@@ -526,11 +528,8 @@ static int flush_sample_queue(struct perf_session *s,
 		os->last_flush = iter->timestamp;
 		list_del(&iter->list);
 		list_add(&iter->list, &os->sample_cache);
-		if (++idx >= progress_next) {
-			progress_next += os->nr_samples / 16;
-			ui_progress__update(idx, os->nr_samples,
-					    "Processing time ordered events...");
-		}
+
+		ui_progress__advance(&prog, 1, "Processing time ordered events...");
 	}
 
 	if (list_empty(head)) {
@@ -1271,12 +1270,13 @@ int __perf_session__process_events(struct perf_session *session,
 				   u64 data_offset, u64 data_size,
 				   u64 file_size, struct perf_tool *tool)
 {
-	u64 head, page_offset, file_offset, file_pos, progress_next;
+	u64 head, page_offset, file_offset, file_pos;
 	int err, mmap_prot, mmap_flags, map_idx = 0;
 	size_t	mmap_size;
 	char *buf, *mmaps[NUM_MMAPS];
 	union perf_event *event;
 	uint32_t size;
+	struct perf_progress prog;
 
 	perf_tool__fill_defaults(tool);
 
@@ -1287,7 +1287,7 @@ int __perf_session__process_events(struct perf_session *session,
 	if (data_offset + data_size < file_size)
 		file_size = data_offset + data_size;
 
-	progress_next = file_size / 16;
+	ui_progress__setup(&prog, file_size);
 
 	mmap_size = MMAP_SIZE;
 	if (mmap_size > file_size)
@@ -1342,11 +1342,7 @@ more:
 	head += size;
 	file_pos += size;
 
-	if (file_pos >= progress_next) {
-		progress_next += file_size / 16;
-		ui_progress__update(file_pos, file_size,
-				    "Processing events...");
-	}
+	ui_progress__advance(&prog, size, "Processing events...");
 
 	if (file_pos < file_size)
 		goto more;
