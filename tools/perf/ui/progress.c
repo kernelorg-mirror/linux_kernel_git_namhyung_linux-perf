@@ -19,6 +19,24 @@ void ui_progress__update(u64 curr, u64 total, const char *title)
 	return progress_fns->update(curr, total, title);
 }
 
+void ui_progress__setup(struct perf_progress *p, u64 total)
+{
+	p->curr = 0;
+	p->next = p->unit = total / 16;
+	p->total = total;
+
+}
+
+void ui_progress__advance(struct perf_progress *p, u64 adv, const char *title)
+{
+	p->curr += adv;
+
+	if (p->curr >= p->next) {
+		p->next += p->unit;
+		ui_progress__update(p->curr, p->total, title);
+	}
+}
+
 void ui_progress__finish(void)
 {
 	if (progress_fns->finish)
