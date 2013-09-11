@@ -40,7 +40,7 @@ int machine__init(struct machine *machine, const char *root_dir, pid_t pid)
 			return -ENOMEM;
 
 		snprintf(comm, sizeof(comm), "[guest/%d]", pid);
-		thread__set_comm(thread, comm);
+		thread__set_comm(thread, comm, 0);
 	}
 
 	return 0;
@@ -314,7 +314,8 @@ struct thread *machine__find_thread(struct machine *machine, pid_t tid)
 	return __machine__findnew_thread(machine, 0, tid, false);
 }
 
-int machine__process_comm_event(struct machine *machine, union perf_event *event)
+int machine__process_comm_event(struct machine *machine, union perf_event *event,
+				struct perf_sample *sample)
 {
 	struct thread *thread = machine__findnew_thread(machine,
 							event->comm.pid,
@@ -323,7 +324,7 @@ int machine__process_comm_event(struct machine *machine, union perf_event *event
 	if (dump_trace)
 		perf_event__fprintf_comm(event, stdout);
 
-	if (thread == NULL || thread__set_comm(thread, event->comm.comm)) {
+	if (thread == NULL || thread__set_comm(thread, event->comm.comm, sample->time)) {
 		dump_printf("problem processing PERF_RECORD_COMM, skipping event.\n");
 		return -1;
 	}
@@ -332,7 +333,7 @@ int machine__process_comm_event(struct machine *machine, union perf_event *event
 }
 
 int machine__process_lost_event(struct machine *machine __maybe_unused,
-				union perf_event *event)
+				union perf_event *event, struct perf_sample *sample __maybe_unused)
 {
 	dump_printf(": id:%" PRIu64 ": lost:%" PRIu64 "\n",
 		    event->lost.id, event->lost.lost);
@@ -997,7 +998,8 @@ out_problem:
 	return -1;
 }
 
-int machine__process_mmap_event(struct machine *machine, union perf_event *event)
+int machine__process_mmap_event(struct machine *machine, union perf_event *event,
+				struct perf_sample *sample __maybe_unused)
 {
 	u8 cpumode = event->header.misc & PERF_RECORD_MISC_CPUMODE_MASK;
 	struct thread *thread;
@@ -1053,7 +1055,8 @@ static void machine__remove_thread(struct machine *machine, struct thread *th)
 	list_add_tail(&th->node, &machine->dead_threads);
 }
 
-int machine__process_fork_event(struct machine *machine, union perf_event *event)
+int machine__process_fork_event(struct machine *machine, union perf_event *event,
+				struct perf_sample *sample)
 {
 	struct thread *thread = machine__find_thread(machine, event->fork.tid);
 	struct thread *parent = machine__findnew_thread(machine,
@@ -1070,7 +1073,7 @@ int machine__process_fork_event(struct machine *machine, union perf_event *event
 		perf_event__fprintf_task(event, stdout);
 
 	if (thread == NULL || parent == NULL ||
-	    thread__fork(thread, parent) < 0) {
+	    thread__fork(thread, parent, sample->time) < 0) {
 		dump_printf("problem processing PERF_RECORD_FORK, skipping event.\n");
 		return -1;
 	}
@@ -1078,8 +1081,8 @@ int machine__process_fork_event(struct machine *machine, union perf_event *event
 	return 0;
 }
 
-int machine__process_exit_event(struct machine *machine __maybe_unused,
-				union perf_event *event)
+int machine__process_exit_event(struct machine *machine, union perf_event *event,
+				struct perf_sample *sample __maybe_unused)
 {
 	struct thread *thread = machine__find_thread(machine, event->fork.tid);
 
@@ -1092,21 +1095,22 @@ int machine__process_exit_event(struct machine *machine __maybe_unused,
 	return 0;
 }
 
-int machine__process_event(struct machine *machine, union perf_event *event)
+int machine__process_event(struct machine *machine, union perf_event *event,
+			   struct perf_sample *sample)
 {
 	int ret;
 
 	switch (event->header.type) {
 	case PERF_RECORD_COMM:
-		ret = machine__process_comm_event(machine, event); break;
+		ret = machine__process_comm_event(machine, event, sample); break;
 	case PERF_RECORD_MMAP:
-		ret = machine__process_mmap_event(machine, event); break;
+		ret = machine__process_mmap_event(machine, event, sample); break;
 	case PERF_RECORD_FORK:
-		ret = machine__process_fork_event(machine, event); break;
+		ret = machine__process_fork_event(machine, event, sample); break;
 	case PERF_RECORD_EXIT:
-		ret = machine__process_exit_event(machine, event); break;
+		ret = machine__process_exit_event(machine, event, sample); break;
 	case PERF_RECORD_LOST:
-		ret = machine__process_lost_event(machine, event); break;
+		ret = machine__process_lost_event(machine, event, sample); break;
 	default:
 		ret = -1;
 		break;
