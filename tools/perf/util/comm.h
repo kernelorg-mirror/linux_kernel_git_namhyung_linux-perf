@@ -16,5 +16,6 @@ struct comm {
 void comm__free(struct comm *self);
 struct comm *comm__new(const char *str, u64 timestamp);
 const char *comm__str(struct comm *self);
+void comm__override(struct comm *self, const char *str, u64 timestamp);
 
 #endif  /* __PERF_COMM_H */
