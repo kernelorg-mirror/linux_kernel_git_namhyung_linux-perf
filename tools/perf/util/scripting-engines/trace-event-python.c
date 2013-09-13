@@ -239,7 +239,7 @@ static void python_process_tracepoint(union perf_event *perf_event
 	int cpu = sample->cpu;
 	void *data = sample->raw_data;
 	unsigned long long nsecs = sample->time;
-	char *comm = thread__comm_curr(thread);
+	const char *comm = thread__comm_curr(thread);
 
 	t = PyTuple_New(MAX_FIELDS);
 	if (!t)

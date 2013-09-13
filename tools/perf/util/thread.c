@@ -54,7 +54,7 @@ void thread__delete(struct thread *self)
 	free(self);
 }
 
-static struct comm *curr_comm(struct thread *self)
+static struct comm *curr_comm(const struct thread *self)
 {
 	if (list_empty(&self->comm_list))
 		return NULL;
@@ -83,7 +83,7 @@ int thread__set_comm(struct thread *self, const char *str, u64 timestamp)
 	return 0;
 }
 
-const char *thread__comm_curr(struct thread *self)
+const char *thread__comm_curr(const struct thread *self)
 {
 	struct comm *comm = curr_comm(self);
 
