@@ -482,6 +482,13 @@ int main(int argc, const char **argv)
 		goto out;
 	}
 
+	if (!prefixcmp(cmd, "trace")) {
+		set_buildid_dir();
+		setup_path();
+		argv[0] = "trace";
+		return cmd_trace(argc, argv, NULL);
+	}
+
 	/* Look for flags.. */
 	argv++;
 	argc--;
