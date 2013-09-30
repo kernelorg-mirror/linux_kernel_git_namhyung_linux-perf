@@ -918,11 +918,10 @@ static void abs_printout(int cpu, int nr, struct perf_evsel *evsel, double avg)
 		print_stalled_cycles_backend(cpu, evsel, avg);
 	} else if (perf_evsel__match(evsel, HARDWARE, HW_CPU_CYCLES)) {
 		total = avg_stats(&runtime_nsecs_stats[cpu]);
-
-		if (total)
-			ratio = 1.0 * avg / total;
-
-		fprintf(output, " # %8.3f GHz                    ", ratio);
+		if (total) {
+			ratio = avg / total;
+			fprintf(output, " # %8.3f GHz                    ", ratio);
+		}
 	} else if (runtime_nsecs_stats[cpu].n != 0) {
 		char unit = 'M';
 
