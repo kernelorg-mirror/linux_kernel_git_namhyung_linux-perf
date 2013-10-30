@@ -349,6 +349,13 @@ iter_add_single_normal_entry(struct add_entry_iter *iter, struct addr_location *
 	if (he == NULL)
 		return -ENOMEM;
 
+	/*
+	 * This is for putting parents upward during output resort iff
+	 * only a child gets sampled.  See hist_entry__sort_on_period().
+	 */
+	he->callchain->max_depth = callchain_cursor.nr - callchain_cursor.pos;
+	he->callchain->max_depth += PERF_MAX_STACK_DEPTH + 1;
+
 	iter->he = he;
 	return 0;
 }
@@ -557,6 +564,12 @@ iter_add_next_cumulative_entry(struct add_entry_iter *iter,
 				sample->transaction, false);
 	if (he == NULL)
 		return -ENOMEM;
+
+	/*
+	 * This is for putting parents upward during output resort iff
+	 * only a child gets sampled.  See hist_entry__sort_on_period().
+	 */
+	he->callchain->max_depth = callchain_cursor.nr - callchain_cursor.pos;
 
 	/*
 	 * Only in the TUI browser we are doing integrated annotation,
