@@ -1030,6 +1030,9 @@ parse_callchain_opt(const struct option *opt, const char *arg, int unset)
 	else if (!strncmp(tok, "fractal", strlen(arg)))
 		callchain_param.mode = CHAIN_GRAPH_REL;
 
+	else if (!strncmp(tok, "cumulative", strlen(arg)))
+		callchain_param.mode = CHAIN_CUMULATIVE;
+
 	else if (!strncmp(tok, "none", strlen(arg))) {
 		callchain_param.mode = CHAIN_NONE;
 		symbol_conf.use_callchain = false;

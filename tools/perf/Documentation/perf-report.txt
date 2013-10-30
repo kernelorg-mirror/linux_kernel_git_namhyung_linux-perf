@@ -130,6 +130,8 @@ OPTIONS
 	- graph: use a graph tree, displaying absolute overhead rates.
 	- fractal: like graph, but displays relative rates. Each branch of
 		 the tree is considered as a new profiled object. +
+        - cumulative: accumulate callchain to parent entry so that they can
+		    show up in the output.
 
 	order can be either:
 	- callee: callee based call graph.

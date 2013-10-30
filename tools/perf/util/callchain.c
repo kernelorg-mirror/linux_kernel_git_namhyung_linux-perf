@@ -150,6 +150,14 @@ sort_chain_graph_rel(struct rb_root *rb_root, struct callchain_root *chain_root,
 	rb_root->rb_node = chain_root->node.rb_root.rb_node;
 }
 
+static void
+sort_chain_cumulative(struct rb_root *rb_root __maybe_unused,
+		      struct callchain_root *chain_root __maybe_unused,
+		      u64 min_hit __maybe_unused,
+		      struct callchain_param *param __maybe_unused)
+{
+}
+
 int callchain_register_param(struct callchain_param *param)
 {
 	switch (param->mode) {
@@ -162,8 +170,10 @@ int callchain_register_param(struct callchain_param *param)
 	case CHAIN_FLAT:
 		param->sort = sort_chain_flat;
 		break;
-	case CHAIN_NONE:
 	case CHAIN_CUMULATIVE:
+		param->sort = sort_chain_cumulative;
+		break;
+	case CHAIN_NONE:
 	default:
 		return -1;
 	}
