@@ -566,6 +566,12 @@ iter_add_next_cumulative_entry(struct add_entry_iter *iter,
 	he_cache[iter->curr++] = he;
 
 	/*
+	 * This is for putting parents upward during output resort iff
+	 * only a child gets sampled.  See hist_entry__sort_on_period().
+	 */
+	he->callchain->max_depth = callchain_cursor.nr - callchain_cursor.pos;
+
+	/*
 	 * Only in the TUI browser we are doing integrated annotation,
 	 * so we don't allocated the extra space needed because the stdio
 	 * code will not use it.
