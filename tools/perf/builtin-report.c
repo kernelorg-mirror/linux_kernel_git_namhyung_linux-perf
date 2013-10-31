@@ -387,6 +387,11 @@ iter_finish_normal_entry(struct add_entry_iter *iter, struct addr_location *al)
 	return err;
 }
 
+struct cumulative_cache {
+	struct dso *dso;
+	struct symbol *sym;
+};
+
 static int
 iter_prepare_cumulative_entry(struct add_entry_iter *iter,
 			      struct machine *machine,
@@ -394,7 +399,29 @@ iter_prepare_cumulative_entry(struct add_entry_iter *iter,
 			      struct addr_location *al __maybe_unused,
 			      struct perf_sample *sample)
 {
+	struct callchain_cursor_node *node;
+	struct cumulative_cache *ccache;
+
 	callchain_cursor_commit(&callchain_cursor);
+
+	/*
+	 * This is for detecting cycles or recursions so that they're
+	 * cumulated only one time to prevent entries more than 100%
+	 * overhead.
+	 */
+	ccache = malloc(sizeof(*ccache) * PERF_MAX_STACK_DEPTH);
+	if (ccache == NULL)
+		return -ENOMEM;
+
+	node = callchain_cursor_current(&callchain_cursor);
+	if (node == NULL)
+		return 0;
+
+	ccache[0].dso = node->map->dso;
+	ccache[0].sym = node->sym;
+
+	iter->priv = ccache;
+	iter->curr = 1;
 
 	/*
 	 * The first callchain node always contains same information
@@ -501,8 +528,29 @@ iter_add_next_cumulative_entry(struct add_entry_iter *iter,
 {
 	struct perf_evsel *evsel = iter->evsel;
 	struct perf_sample *sample = iter->sample;
+	struct cumulative_cache *ccache = iter->priv;
 	struct hist_entry *he;
 	int err = 0;
+	int i;
+
+	/*
+	 * Check if there's duplicate entries in the callchain.
+	 * It's possible that it has cycles or recursive calls.
+	 */
+	for (i = 0; i < iter->curr; i++) {
+		if (sort__has_sym) {
+			if (ccache[i].sym == al->sym)
+				return 0;
+		} else {
+			/* Not much we can do - just compare the dso. */
+			if (ccache[i].dso == al->map->dso)
+				return 0;
+		}
+	}
+
+	ccache[i].dso = al->map->dso;
+	ccache[i].sym = al->sym;
+	iter->curr++;
 
 	he = __hists__add_entry(&evsel->hists, al, iter->parent, NULL, NULL,
 				sample->period, sample->weight,
@@ -538,6 +586,7 @@ iter_finish_cumulative_entry(struct add_entry_iter *iter,
 	evsel->hists.stats.total_period += sample->period;
 	hists__inc_nr_events(&evsel->hists, PERF_RECORD_SAMPLE);
 
+	free(iter->priv);
 	return 0;
 }
 
