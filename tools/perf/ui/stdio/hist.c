@@ -496,6 +496,10 @@ print_entries:
 		if (h->filtered)
 			continue;
 
+		if (callchain_param.mode == CHAIN_CUMULATIVE)
+			percent = h->stat_acc->period * 100.0 /
+					hists->stats.total_period;
+
 		if (percent < min_pcnt)
 			continue;
 

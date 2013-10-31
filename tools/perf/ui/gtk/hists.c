@@ -302,6 +302,10 @@ static void perf_gtk__show_hists(GtkWidget *window, struct hists *hists,
 		if (h->filtered)
 			continue;
 
+		if (callchain_param.mode == CHAIN_CUMULATIVE)
+			percent = h->stat_acc->period * 100.0 /
+					hists->stats.total_period;
+
 		if (percent < min_pcnt)
 			continue;
 
