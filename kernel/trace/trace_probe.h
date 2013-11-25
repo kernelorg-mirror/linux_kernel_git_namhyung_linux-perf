@@ -106,6 +106,7 @@ enum {
 	FETCH_MTD_symbol,
 	FETCH_MTD_deref,
 	FETCH_MTD_bitfield,
+	FETCH_MTD_file_offset,
 	FETCH_MTD_END,
 };
 
@@ -217,6 +218,7 @@ ASSIGN_FETCH_FUNC(memory, ftype),			\
 ASSIGN_FETCH_FUNC(symbol, ftype),			\
 ASSIGN_FETCH_FUNC(deref, ftype),			\
 ASSIGN_FETCH_FUNC(bitfield, ftype),			\
+ASSIGN_FETCH_FUNC(file_offset, ftype),			\
 	  }						\
 	}
 
@@ -291,6 +293,11 @@ static inline __kprobes void call_fetch(struct fetch_param *fprm,
 	return fprm->fn(regs, fprm->data, dest);
 }
 
+struct file_offset_fetch_param {
+	unsigned long 		offset;
+	struct trace_uprobe	*tu;
+};
+
 /* Check the name is good for event/group/fields */
 static inline int is_good_name(const char *name)
 {
@@ -304,7 +311,7 @@ static inline int is_good_name(const char *name)
 }
 
 extern int traceprobe_parse_probe_arg(char *arg, ssize_t *size,
-		   struct probe_arg *parg, bool is_return, bool is_kprobe);
+		   struct probe_arg *parg, bool is_return, void *priv);
 
 extern int traceprobe_conflict_field_name(const char *name,
 			       struct probe_arg *args, int narg);

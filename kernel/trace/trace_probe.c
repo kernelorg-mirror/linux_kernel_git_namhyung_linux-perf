@@ -348,13 +348,14 @@ static int parse_probe_vars(char *arg, const struct fetch_type *t,
 
 /* Recursive argument parser */
 static int parse_probe_arg(char *arg, const struct fetch_type *t,
-		     struct fetch_param *f, bool is_return, bool is_kprobe)
+		     struct fetch_param *f, bool is_return, void *priv)
 {
 	const struct fetch_type *ftbl;
 	unsigned long param;
 	long offset;
 	char *tmp;
 	int ret = 0;
+	bool is_kprobe = (priv == NULL);
 
 	ftbl = is_kprobe ? kprobes_fetch_type_table : uprobes_fetch_type_table;
 	BUG_ON(ftbl == NULL);
@@ -373,7 +374,7 @@ static int parse_probe_arg(char *arg, const struct fetch_type *t,
 		}
 		break;
 
-	case '@':	/* memory or symbol */
+	case '@':	/* memory, file-offset or symbol */
 		if (isdigit(arg[1])) {
 			ret = kstrtoul(arg + 1, 0, &param);
 			if (ret)
@@ -381,6 +382,26 @@ static int parse_probe_arg(char *arg, const struct fetch_type *t,
 
 			f->fn = t->fetch[FETCH_MTD_memory];
 			f->data = (void *)param;
+		} else if (arg[1] == '+') {
+			struct file_offset_fetch_param *foprm;
+
+			/* kprobes don't support file offsets */
+			if (is_kprobe)
+				return -EINVAL;
+
+			ret = kstrtol(arg + 2, 0, &offset);
+			if (ret)
+				break;
+
+			foprm = kzalloc(sizeof(*foprm), GFP_KERNEL);
+			if (!foprm)
+				return -ENOMEM;
+
+			foprm->tu = priv;
+			foprm->offset = offset;
+
+			f->fn = t->fetch[FETCH_MTD_file_offset];
+			f->data = foprm;
 		} else {
 			/* uprobes don't support symbols */
 			if (!is_kprobe)
@@ -428,7 +449,7 @@ static int parse_probe_arg(char *arg, const struct fetch_type *t,
 			dprm->fetch_size = get_fetch_size_function(t,
 							dprm->fetch, ftbl);
 			ret = parse_probe_arg(arg, t2, &dprm->orig, is_return,
-							is_kprobe);
+							priv);
 			if (ret)
 				kfree(dprm);
 			else {
@@ -486,11 +507,12 @@ static int __parse_bitfield_probe_arg(const char *bf,
 
 /* String length checking wrapper */
 int traceprobe_parse_probe_arg(char *arg, ssize_t *size,
-		struct probe_arg *parg, bool is_return, bool is_kprobe)
+		struct probe_arg *parg, bool is_return, void *priv)
 {
 	const struct fetch_type *ftbl;
 	const char *t;
 	int ret;
+	bool is_kprobe = (priv == NULL);
 
 	ftbl = is_kprobe ? kprobes_fetch_type_table : uprobes_fetch_type_table;
 	BUG_ON(ftbl == NULL);
@@ -516,7 +538,7 @@ int traceprobe_parse_probe_arg(char *arg, ssize_t *size,
 	}
 	parg->offset = *size;
 	*size += parg->type->size;
-	ret = parse_probe_arg(arg, parg->type, &parg->fetch, is_return, is_kprobe);
+	ret = parse_probe_arg(arg, parg->type, &parg->fetch, is_return, priv);
 
 	if (ret >= 0 && t != NULL)
 		ret = __parse_bitfield_probe_arg(t, parg->type, &parg->fetch);

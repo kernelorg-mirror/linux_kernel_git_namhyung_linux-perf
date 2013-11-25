@@ -175,6 +175,26 @@ static __kprobes void FETCH_FUNC_NAME(memory, string_size)(struct pt_regs *regs,
 #define fetch_symbol_string		NULL
 #define fetch_symbol_string_size	NULL
 
+static unsigned long translate_user_vaddr(struct file_offset_fetch_param *foprm)
+{
+	unsigned long base_addr;
+
+	base_addr = current->utask->vaddr - foprm->tu->offset;
+	return base_addr + foprm->offset;
+}
+
+#define DEFINE_FETCH_file_offset(type)					\
+static __kprobes void FETCH_FUNC_NAME(file_offset, type)(struct pt_regs *regs,\
+					void *data, void *dest) 	\
+{									\
+	void *vaddr = (void *)translate_user_vaddr(data);		\
+									\
+	FETCH_FUNC_NAME(memory, type)(regs, vaddr, dest);		\
+}
+DEFINE_BASIC_FETCH_FUNCS(file_offset)
+DEFINE_FETCH_file_offset(string)
+DEFINE_FETCH_file_offset(string_size)
+
 /* Fetch type information table */
 const struct fetch_type uprobes_fetch_type_table[] = {
 	/* Special types */
@@ -512,7 +532,7 @@ static int create_trace_uprobe(int argc, char **argv)
 
 		/* Parse fetch argument */
 		ret = traceprobe_parse_probe_arg(arg, &tu->p.size, parg,
-						 is_return, false);
+						 is_return, tu);
 		if (ret) {
 			pr_info("Parse error at argument[%d]. (%d)\n", i, ret);
 			goto error;
@@ -1104,10 +1124,17 @@ int trace_uprobe_register(struct ftrace_event_call *event, enum trace_reg type, 
 static int uprobe_dispatcher(struct uprobe_consumer *con, struct pt_regs *regs)
 {
 	struct trace_uprobe *tu;
+	struct uprobe_task *utask;
 	int ret = 0;
 
 	tu = container_of(con, struct trace_uprobe, consumer);
 	tu->nhit++;
+
+	utask = current->utask;
+	if (utask == NULL)
+		return UPROBE_HANDLER_REMOVE;
+
+	utask->vaddr = instruction_pointer(regs);
 
 	if (tu->p.flags & TP_FLAG_TRACE)
 		ret |= uprobe_trace_func(tu, regs);
@@ -1123,8 +1150,15 @@ static int uretprobe_dispatcher(struct uprobe_consumer *con,
 				unsigned long func, struct pt_regs *regs)
 {
 	struct trace_uprobe *tu;
+	struct uprobe_task *utask;
 
 	tu = container_of(con, struct trace_uprobe, consumer);
+
+	utask = current->utask;
+	if (utask == NULL)
+		return UPROBE_HANDLER_REMOVE;
+
+	utask->vaddr = func;
 
 	if (tu->p.flags & TP_FLAG_TRACE)
 		uretprobe_trace_func(tu, func, regs);
