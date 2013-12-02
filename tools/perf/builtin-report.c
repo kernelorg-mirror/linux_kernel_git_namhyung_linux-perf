@@ -898,6 +898,8 @@ int cmd_report(int argc, const char **argv, const char *prefix __maybe_unused)
 	OPT_BOOLEAN(0, "mem-mode", &report.mem_mode, "mem access profile"),
 	OPT_CALLBACK(0, "percent-limit", &report, "percent",
 		     "Don't show entries under that percent", parse_percent_limit),
+	OPT_BOOLEAN(0, "show-time-info", &symbol_conf.show_time_info,
+		    "Show a column with the elapsed time"),
 	OPT_END()
 	};
 	struct perf_data_file file = {
