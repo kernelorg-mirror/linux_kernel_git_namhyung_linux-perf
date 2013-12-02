@@ -204,11 +204,12 @@ static void hist_entry__add_cpumode_period(struct hist_entry *he,
 }
 
 static void he_stat__add_period(struct he_stat *he_stat, u64 period,
-				u64 weight)
+				u64 time, u64 weight)
 {
 
 	he_stat->period		+= period;
 	he_stat->weight		+= weight;
+	he_stat->time		+= time;
 	he_stat->nr_events	+= 1;
 }
 
@@ -221,10 +222,12 @@ static void he_stat__add_stat(struct he_stat *dest, struct he_stat *src)
 	dest->period_guest_us	+= src->period_guest_us;
 	dest->nr_events		+= src->nr_events;
 	dest->weight		+= src->weight;
+	dest->time		+= src->time;
 }
 
 static void hist_entry__decay(struct hist_entry *he)
 {
+	he->stat.time = (he->stat.time * 7) / 8;
 	he->stat.period = (he->stat.period * 7) / 8;
 	he->stat.nr_events = (he->stat.nr_events * 7) / 8;
 	/* XXX need decay for weight too? */
@@ -344,7 +347,7 @@ static u8 symbol__parent_filter(const struct symbol *parent)
 static struct hist_entry *add_hist_entry(struct hists *hists,
 				      struct hist_entry *entry,
 				      struct addr_location *al,
-				      u64 period,
+				      u64 period, u64 time,
 				      u64 weight)
 {
 	struct rb_node **p;
@@ -367,7 +370,7 @@ static struct hist_entry *add_hist_entry(struct hists *hists,
 		cmp = hist_entry__cmp(he, entry);
 
 		if (!cmp) {
-			he_stat__add_period(&he->stat, period, weight);
+			he_stat__add_period(&he->stat, period, time, weight);
 
 			/*
 			 * This mem info was allocated from machine__resolve_mem
@@ -412,7 +415,8 @@ struct hist_entry *__hists__add_entry(struct hists *hists,
 				      struct symbol *sym_parent,
 				      struct branch_info *bi,
 				      struct mem_info *mi,
-				      u64 period, u64 weight, u64 transaction)
+				      u64 period, u64 time,
+				      u64 weight, u64 transaction)
 {
 	struct hist_entry entry = {
 		.thread	= al->thread,
@@ -428,6 +432,7 @@ struct hist_entry *__hists__add_entry(struct hists *hists,
 			.nr_events = 1,
 			.period	= period,
 			.weight = weight,
+			.time = time,
 		},
 		.parent = sym_parent,
 		.filtered = symbol__parent_filter(sym_parent),
@@ -437,7 +442,7 @@ struct hist_entry *__hists__add_entry(struct hists *hists,
 		.transaction = transaction,
 	};
 
-	return add_hist_entry(hists, &entry, al, period, weight);
+	return add_hist_entry(hists, &entry, al, period, time, weight);
 }
 
 int64_t
