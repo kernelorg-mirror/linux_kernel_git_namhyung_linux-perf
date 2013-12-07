@@ -301,7 +301,10 @@ find_event(struct pevent *pevent, struct event_list **events,
 		sys_name = NULL;
 	}
 
-	reg = malloc_or_die(strlen(event_name) + 3);
+	reg = malloc(strlen(event_name) + 3);
+	if (reg == NULL)
+		return -2;
+
 	sprintf(reg, "^%s$", event_name);
 
 	ret = regcomp(&ereg, reg, REG_ICASE|REG_NOSUB);
@@ -311,7 +314,12 @@ find_event(struct pevent *pevent, struct event_list **events,
 		return -1;
 
 	if (sys_name) {
-		reg = malloc_or_die(strlen(sys_name) + 3);
+		reg = malloc(strlen(sys_name) + 3);
+		if (reg == NULL) {
+			regfree(&ereg);
+			return -2;
+		}
+
 		sprintf(reg, "^%s$", sys_name);
 		ret = regcomp(&sreg, reg, REG_ICASE|REG_NOSUB);
 		free(reg);
@@ -1290,7 +1298,10 @@ int pevent_filter_add_filter_str(struct event_filter *filter,
 		/* Find this event */
 		ret = find_event(pevent, &events, strim(sys_name), strim(event_name));
 		if (ret < 0) {
-			if (event_name)
+			if (ret == -2)
+				show_error(error_str,
+					   "Memory allocation failure");
+			else if (event_name)
 				show_error(error_str,
 					   "No event found under '%s.%s'",
 					   sys_name, event_name);
