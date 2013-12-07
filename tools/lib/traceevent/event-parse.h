@@ -836,6 +836,7 @@ struct event_filter {
 
 struct event_filter *pevent_filter_alloc(struct pevent *pevent);
 
+#define FILTER_ERROR		-3
 #define FILTER_NONE		-2
 #define FILTER_NOEXIST		-1
 #define FILTER_MISS		0
