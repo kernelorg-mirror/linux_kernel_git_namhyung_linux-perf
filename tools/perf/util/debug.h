@@ -19,4 +19,19 @@ int ui__warning(const char *format, ...) __attribute__((format(printf, 1, 2)));
 
 void pr_stat(const char *fmt, ...);
 
+struct perf_log {
+	FILE *fp;
+	off_t *linemap;
+	u32 lines;
+	u32 nr_alloc;
+	bool seen_newline;
+};
+
+extern struct perf_log perf_log;
+
+int perf_log_init(void);
+int perf_log_exit(void);
+void perf_log_add(const char *msg);
+void perf_log_addv(const char *fmt, va_list ap);
+
 #endif	/* __PERF_DEBUG_H */
