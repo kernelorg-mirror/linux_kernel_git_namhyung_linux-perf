@@ -1484,6 +1484,9 @@ static int perf_evsel__hists_browse(struct perf_evsel *evsel, int nr_events,
 			if (is_report_browser(hbt))
 				goto do_data_switch;
 			continue;
+		case 'l':
+			tui__log_window();
+			continue;
 		case K_F1:
 		case 'h':
 		case '?':
@@ -1506,6 +1509,7 @@ static int perf_evsel__hists_browse(struct perf_evsel *evsel, int nr_events,
 					"s             Switch to another data file in PWD ('perf report' only)\n"
 					"P             Print histograms to perf.hist.N\n"
 					"V             Verbose (DSO names in callchains, etc)\n"
+					"l             Show log messages\n"
 					"/             Filter symbol by name");
 			continue;
 		case K_ENTER:
