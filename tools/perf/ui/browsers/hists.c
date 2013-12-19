@@ -1487,6 +1487,9 @@ static int perf_evsel__hists_browse(struct perf_evsel *evsel, int nr_events,
 		case 'l':
 			tui__log_window();
 			continue;
+		case 'i':
+			tui__header_window(env);
+			continue;
 		case K_F1:
 		case 'h':
 		case '?':
@@ -1510,6 +1513,7 @@ static int perf_evsel__hists_browse(struct perf_evsel *evsel, int nr_events,
 					"P             Print histograms to perf.hist.N\n"
 					"V             Verbose (DSO names in callchains, etc)\n"
 					"l             Show log messages\n"
+					"i             Show header information\n"
 					"/             Filter symbol by name");
 			continue;
 		case K_ENTER:
