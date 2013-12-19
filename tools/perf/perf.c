@@ -10,6 +10,7 @@
 
 #include "util/exec_cmd.h"
 #include "util/cache.h"
+#include "util/debug.h"
 #include "util/quote.h"
 #include "util/run-command.h"
 #include "util/parse-events.h"
@@ -524,6 +525,7 @@ int main(int argc, const char **argv)
 	 */
 	pthread__block_sigwinch();
 
+	perf_log_init();
 	while (1) {
 		static int done_help;
 		int was_alias = run_argv(&argc, &argv);
@@ -543,6 +545,7 @@ int main(int argc, const char **argv)
 		} else
 			break;
 	}
+	perf_log_exit();
 
 	fprintf(stderr, "Failed to run command '%s': %s\n",
 		cmd, strerror(errno));
