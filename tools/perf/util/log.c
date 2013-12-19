@@ -89,11 +89,17 @@ static void add_to_linemap(struct perf_log *log, const char *msg, off_t base)
 void perf_log_add(const char *msg)
 {
 	FILE *fp = perf_log.fp;
-	off_t offset = ftello(fp);
+	off_t offset;
+
+	pthread_mutex_lock(&ui__lock);
+	offset = ftello(fp);
 
 	add_to_linemap(&perf_log, msg, offset);
 
 	fwrite(msg, 1, strlen(msg), fp);
+
+	perf_log.linemap_changed = true;
+	pthread_mutex_unlock(&ui__lock);
 }
 
 void perf_log_addv(const char *fmt, va_list ap)
