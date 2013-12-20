@@ -25,7 +25,7 @@ static void ui_browser__file_write(struct ui_browser *browser,
 	char empty[] = " ";
 	FILE *fp = perf_log.fp;
 	bool current_entry = ui_browser__is_current_entry(browser, row);
-	off_t *linemap = perf_log.linemap;
+	off_t *linemap = browser->entries;
 	unsigned int idx = *(unsigned int *)entry;
 	unsigned long offset = (unsigned long)browser->priv;
 
@@ -59,9 +59,60 @@ static unsigned int ui_browser__file_refresh(struct ui_browser *browser)
 	return row;
 }
 
+static void log_menu__filter(struct ui_browser *menu, char *filter)
+{
+	char buf[1024];
+	off_t *linemap = NULL;
+	u32 lines = 0;
+	u32 alloc = 0;
+	u32 i;
+
+	if (*filter == '\0') {
+		linemap = perf_log.linemap;
+		lines = perf_log.lines;
+		goto out;
+	}
+
+	for (i = 0; i < perf_log.lines; i++) {
+		fseek(perf_log.fp, perf_log.linemap[i], SEEK_SET);
+		if (fgets(buf, sizeof(buf), perf_log.fp) == NULL)
+			goto error;
+
+		if (strstr(buf, filter) == NULL)
+			continue;
+
+		if (lines == alloc) {
+			off_t *map;
+
+			map = realloc(linemap, (alloc + 128) * sizeof(*linemap));
+			if (map == NULL)
+				goto error;
+
+			linemap = map;
+			alloc += 128;
+		}
+
+		linemap[lines++] = perf_log.linemap[i];
+	}
+out:
+	if (menu->entries != perf_log.linemap)
+		free(menu->entries);
+
+	menu->entries = linemap;
+	menu->nr_entries = lines;
+
+	menu->top_idx = 0;
+	menu->index = 0;
+	return;
+
+error:
+	free(linemap);
+}
+
 static int log_menu__run(struct ui_browser *menu)
 {
 	int key;
+	char buf[64];
 	unsigned long offset;
 
 	if (ui_browser__show(menu, "Log messages", "Press 'q' to exit") < 0)
@@ -81,6 +132,14 @@ static int log_menu__run(struct ui_browser *menu)
 			if (offset >= 10)
 				offset -= 10;
 			menu->priv = (void *)offset;
+			continue;
+		case '/':
+			if (ui_browser__input_window("Symbol to show",
+					"Please enter the name of symbol you want to see",
+					buf, "ENTER: OK, ESC: Cancel",
+					0) == K_ENTER) {
+				log_menu__filter(menu, buf);
+			}
 			continue;
 		case K_ESC:
 		case 'q':
@@ -104,8 +163,15 @@ int tui__log_window(void)
 		.refresh    = ui_browser__file_refresh,
 		.seek	    = ui_browser__file_seek,
 		.write	    = ui_browser__file_write,
+		.entries    = perf_log.linemap,
 		.nr_entries = perf_log.lines,
 	};
+	int key;
 
-	return log_menu__run(&log_menu);
+	key = log_menu__run(&log_menu);
+
+	if (log_menu.entries != perf_log.linemap)
+		free(log_menu.entries);
+
+	return key;
 }
