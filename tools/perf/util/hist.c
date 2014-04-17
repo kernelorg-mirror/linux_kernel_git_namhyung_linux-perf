@@ -259,8 +259,11 @@ void hists__decay_entries(struct hists *hists, bool zap_user, bool zap_kernel)
 			if (sort__need_collapse)
 				rb_erase(&n->rb_node_in, &hists->entries_collapsed);
 
-			hist_entry__free(n);
 			--hists->nr_entries;
+			if (!n->filtered)
+				--hists->nr_non_filtered_entries;
+
+			hist_entry__free(n);
 		}
 	}
 }
@@ -394,6 +397,9 @@ static struct hist_entry *add_hist_entry(struct hists *hists,
 		return NULL;
 
 	hists->nr_entries++;
+	if (!he->filtered)
+		hists->nr_non_filtered_entries++;
+
 	rb_link_node(&he->rb_node_in, parent, p);
 	rb_insert_color(&he->rb_node_in, hists->entries_in);
 out:
