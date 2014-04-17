@@ -1349,9 +1349,10 @@ static void hist_browser__update_pcnt_entries(struct hist_browser *hb)
 	struct rb_node *nd = rb_first(&hb->hists->entries);
 
 	while (nd) {
-		nr_entries++;
 		nd = hists__filter_entries(rb_next(nd), hb->hists,
 					   hb->min_pcnt);
+		if (nd)
+			nr_entries++;
 	}
 
 	hb->nr_pcnt_entries = nr_entries;
