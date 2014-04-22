@@ -333,6 +333,19 @@ void hists__inc_nr_events(struct hists *hists, u32 type)
 	__events_stats__add(&hists->stats, type, 1);
 }
 
+void hists__inc_dump_events(struct hists *hists)
+{
+	if (!dump_trace)
+		return;
+
+	/*
+	 * If dump_trace is enabled, perf will exit before accounting
+	 * sample events during hists__output_resort().  Thus it needs to
+	 * be done separately.
+	 */
+	__events_stats__add(&hists->stats, PERF_RECORD_SAMPLE, 1);
+}
+
 static void hists__add_nr_events(struct hists *hists, u32 type, u32 val)
 {
 	__events_stats__add(&hists->stats, type, val);

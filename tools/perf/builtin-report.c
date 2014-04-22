@@ -124,6 +124,7 @@ static int report__add_mem_hist_entry(struct report *rep, struct addr_location *
 	}
 
 	rep->nr_samples++;
+	hists__inc_dump_events(&evsel->hists);
 	if (he->stat.nr_events == 1) {
 		/* count new entries only */
 		rep->nr_entries++;
@@ -181,6 +182,7 @@ static int report__add_branch_hist_entry(struct report *rep, struct addr_locatio
 			}
 
 			rep->nr_samples++;
+			hists__inc_dump_events(&evsel->hists);
 			if (he->stat.nr_events == 1) {
 				/* count new entries only */
 				rep->nr_entries++;
@@ -218,6 +220,7 @@ static int report__add_hist_entry(struct report *rep, struct perf_evsel *evsel,
 		err = hist_entry__inc_addr_samples(he, evsel->idx, al->addr);
 
 	rep->nr_samples++;
+	hists__inc_dump_events(&evsel->hists);
 	if (he->stat.nr_events == 1) {
 		/* count new entries only */
 		rep->nr_entries++;

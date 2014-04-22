@@ -118,6 +118,7 @@ void hists__output_recalc_col_len(struct hists *hists, int max_rows);
 u64 hists__total_period(struct hists *hists);
 void hists__inc_nr_entries(struct hists *hists, struct hist_entry *h);
 void hists__inc_nr_events(struct hists *hists, u32 type);
+void hists__inc_dump_events(struct hists *hists);
 void events_stats__inc(struct events_stats *stats, u32 type);
 size_t events_stats__fprintf(struct events_stats *stats, FILE *fp);
 
