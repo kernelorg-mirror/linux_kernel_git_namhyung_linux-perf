@@ -317,6 +317,27 @@ static struct hist_entry *hist_entry__new(struct hist_entry *template)
 	return he;
 }
 
+static void __events_stats__add(struct events_stats *stats, u32 type, u32 val)
+{
+	stats->nr_events[0] += val;
+	stats->nr_events[type] += val;
+}
+
+void events_stats__inc(struct events_stats *stats, u32 type)
+{
+	__events_stats__add(stats, type, 1);
+}
+
+void hists__inc_nr_events(struct hists *hists, u32 type)
+{
+	__events_stats__add(&hists->stats, type, 1);
+}
+
+static void hists__add_nr_events(struct hists *hists, u32 type, u32 val)
+{
+	__events_stats__add(&hists->stats, type, val);
+}
+
 void hists__inc_nr_entries(struct hists *hists, struct hist_entry *h)
 {
 	if (!h->filtered) {
@@ -803,17 +824,6 @@ void hists__filter_by_symbol(struct hists *hists)
 
 		hists__remove_entry_filter(hists, h, HIST_FILTER__SYMBOL);
 	}
-}
-
-void events_stats__inc(struct events_stats *stats, u32 type)
-{
-	++stats->nr_events[0];
-	++stats->nr_events[type];
-}
-
-void hists__inc_nr_events(struct hists *hists, u32 type)
-{
-	events_stats__inc(&hists->stats, type);
 }
 
 static struct hist_entry *hists__add_dummy_entry(struct hists *hists,
