@@ -46,12 +46,11 @@ struct perf_annotate {
 };
 
 static int perf_evsel__add_sample(struct perf_evsel *evsel,
-				  struct perf_sample *sample,
+				  struct perf_sample *sample __maybe_unused,
 				  struct addr_location *al,
 				  struct perf_annotate *ann)
 {
 	struct hist_entry *he;
-	int ret;
 
 	if (ann->sym_hist_filter != NULL &&
 	    (al->sym == NULL ||
@@ -69,10 +68,7 @@ static int perf_evsel__add_sample(struct perf_evsel *evsel,
 	if (he == NULL)
 		return -ENOMEM;
 
-	ret = hist_entry__inc_addr_samples(he, evsel->idx, al->addr);
-	evsel->hists.stats.total_period += sample->period;
-	hists__inc_nr_events(&evsel->hists, PERF_RECORD_SAMPLE);
-	return ret;
+	return hist_entry__inc_addr_samples(he, evsel->idx, al->addr);
 }
 
 static int process_sample_event(struct perf_tool *tool,
@@ -234,19 +230,17 @@ static int __cmd_annotate(struct perf_annotate *ann)
 	total_nr_samples = 0;
 	evlist__for_each(session->evlist, pos) {
 		struct hists *hists = &pos->hists;
-		u32 nr_samples = hists->stats.nr_events[PERF_RECORD_SAMPLE];
 
-		if (nr_samples > 0) {
-			total_nr_samples += nr_samples;
-			hists__collapse_resort(hists, NULL);
-			hists__output_resort(hists);
+		hists__collapse_resort(hists, NULL);
+		hists__output_resort(hists);
 
-			if (symbol_conf.event_group &&
-			    !perf_evsel__is_group_leader(pos))
-				continue;
+		if (symbol_conf.event_group &&
+		    !perf_evsel__is_group_leader(pos))
+			continue;
 
-			hists__find_annotations(hists, pos, ann);
-		}
+		hists__find_annotations(hists, pos, ann);
+
+		total_nr_samples += hists->stats.nr_events[PERF_RECORD_SAMPLE];
 	}
 
 	if (total_nr_samples == 0) {

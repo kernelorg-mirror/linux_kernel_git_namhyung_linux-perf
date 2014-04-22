@@ -344,9 +344,11 @@ void hists__inc_nr_entries(struct hists *hists, struct hist_entry *h)
 		hists__calc_col_len(hists, h);
 		hists->nr_non_filtered_entries++;
 		hists->stats.total_non_filtered_period += h->stat.period;
+		hists->stats.nr_non_filtered_samples += h->stat.nr_events;
 	}
 	hists->nr_entries++;
 	hists->stats.total_period += h->stat.period;
+	hists__add_nr_events(hists, PERF_RECORD_SAMPLE, h->stat.nr_events);
 }
 
 static u8 symbol__parent_filter(const struct symbol *parent)
@@ -414,7 +416,6 @@ static struct hist_entry *add_hist_entry(struct hists *hists,
 	if (!he)
 		return NULL;
 
-	hists->nr_entries++;
 	rb_link_node(&he->rb_node_in, parent, p);
 	rb_insert_color(&he->rb_node_in, hists->entries_in);
 out:
