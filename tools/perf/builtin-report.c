@@ -57,6 +57,8 @@ struct report {
 	const char		*cpu_list;
 	const char		*symbol_filter_str;
 	float			min_percent;
+	u64			nr_entries;
+	u64			nr_samples;
 	DECLARE_BITMAP(cpu_bitmap, MAX_NR_CPUS);
 };
 
@@ -121,6 +123,12 @@ static int report__add_mem_hist_entry(struct report *rep, struct addr_location *
 			goto out;
 	}
 
+	rep->nr_samples++;
+	if (he->stat.nr_events == 1) {
+		/* count new entries only */
+		rep->nr_entries++;
+	}
+
 	evsel->hists.stats.total_period += cost;
 	hists__inc_nr_events(&evsel->hists, PERF_RECORD_SAMPLE);
 	if (!he->filtered)
@@ -176,6 +184,12 @@ static int report__add_branch_hist_entry(struct report *rep, struct addr_locatio
 					goto out;
 			}
 
+			rep->nr_samples++;
+			if (he->stat.nr_events == 1) {
+				/* count new entries only */
+				rep->nr_entries++;
+			}
+
 			evsel->hists.stats.total_period += 1;
 			hists__inc_nr_events(&evsel->hists, PERF_RECORD_SAMPLE);
 			if (!he->filtered)
@@ -211,6 +225,12 @@ static int report__add_hist_entry(struct report *rep, struct perf_evsel *evsel,
 
 	if (ui__has_annotation())
 		err = hist_entry__inc_addr_samples(he, evsel->idx, al->addr);
+
+	rep->nr_samples++;
+	if (he->stat.nr_events == 1) {
+		/* count new entries only */
+		rep->nr_entries++;
+	}
 
 	evsel->hists.stats.total_period += sample->period;
 	if (!he->filtered)
@@ -490,20 +510,8 @@ static u64 report__collapse_hists(struct report *rep)
 {
 	struct ui_progress prog;
 	struct perf_evsel *pos;
-	u64 nr_samples = 0;
-	/*
- 	 * Count number of histogram entries to use when showing progress,
- 	 * reusing nr_samples variable.
- 	 */
-	evlist__for_each(rep->session->evlist, pos)
-		nr_samples += pos->hists.nr_entries;
 
-	ui_progress__init(&prog, nr_samples, "Merging related events...");
-	/*
-	 * Count total number of samples, will be used to check if this
- 	 * session had any.
- 	 */
-	nr_samples = 0;
+	ui_progress__init(&prog, rep->nr_entries, "Merging related events...");
 
 	evlist__for_each(rep->session->evlist, pos) {
 		struct hists *hists = &pos->hists;
@@ -512,7 +520,6 @@ static u64 report__collapse_hists(struct report *rep)
 			hists->symbol_filter_str = rep->symbol_filter_str;
 
 		hists__collapse_resort(hists, &prog);
-		nr_samples += hists->stats.nr_events[PERF_RECORD_SAMPLE];
 
 		/* Non-group events are considered as leader */
 		if (symbol_conf.event_group &&
@@ -526,7 +533,7 @@ static u64 report__collapse_hists(struct report *rep)
 
 	ui_progress__finish();
 
-	return nr_samples;
+	return rep->nr_samples;
 }
 
 static int __cmd_report(struct report *rep)
