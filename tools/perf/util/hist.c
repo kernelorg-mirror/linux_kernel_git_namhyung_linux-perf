@@ -317,17 +317,6 @@ static struct hist_entry *hist_entry__new(struct hist_entry *template)
 	return he;
 }
 
-void hists__inc_nr_entries(struct hists *hists, struct hist_entry *h)
-{
-	if (!h->filtered) {
-		hists__calc_col_len(hists, h);
-		hists->nr_non_filtered_entries++;
-		hists->stats.total_non_filtered_period += h->stat.period;
-	}
-	hists->nr_entries++;
-	hists->stats.total_period += h->stat.period;
-}
-
 static u8 symbol__parent_filter(const struct symbol *parent)
 {
 	if (symbol_conf.exclude_other && parent == NULL)
@@ -393,7 +382,6 @@ static struct hist_entry *add_hist_entry(struct hists *hists,
 	if (!he)
 		return NULL;
 
-	hists->nr_entries++;
 	rb_link_node(&he->rb_node_in, parent, p);
 	rb_insert_color(&he->rb_node_in, hists->entries_in);
 out:
@@ -659,6 +647,35 @@ static void __hists__insert_output_entry(struct rb_root *entries,
 	rb_insert_color(&he->rb_node, entries);
 }
 
+static void hists__reset_filter_stats(struct hists *hists)
+{
+	hists->nr_non_filtered_entries = 0;
+	hists->stats.total_non_filtered_period = 0;
+}
+
+void hists__reset_stats(struct hists *hists)
+{
+	hists->nr_entries = 0;
+	hists->stats.total_period = 0;
+
+	hists__reset_filter_stats(hists);
+}
+
+static void hists__inc_filter_stats(struct hists *hists, struct hist_entry *he)
+{
+	hists->nr_non_filtered_entries++;
+	hists->stats.total_non_filtered_period += he->stat.period;
+}
+
+void hists__inc_stats(struct hists *hists, struct hist_entry *he)
+{
+	if (!he->filtered)
+		hists__inc_filter_stats(hists, he);
+
+	hists->nr_entries++;
+	hists->stats.total_period += he->stat.period;
+}
+
 void hists__output_resort(struct hists *hists)
 {
 	struct rb_root *root;
@@ -676,9 +693,7 @@ void hists__output_resort(struct hists *hists)
 	next = rb_first(root);
 	hists->entries = RB_ROOT;
 
-	hists->nr_non_filtered_entries = 0;
-	hists->stats.total_period = 0;
-	hists->stats.total_non_filtered_period = 0;
+	hists__reset_stats(hists);
 	hists__reset_col_len(hists);
 
 	while (next) {
@@ -686,7 +701,10 @@ void hists__output_resort(struct hists *hists)
 		next = rb_next(&n->rb_node_in);
 
 		__hists__insert_output_entry(&hists->entries, n, min_callchain_hits);
-		hists__inc_nr_entries(hists, n);
+		hists__inc_stats(hists, n);
+
+		if (!n->filtered)
+			hists__calc_col_len(hists, n);
 	}
 }
 
@@ -697,13 +715,13 @@ static void hists__remove_entry_filter(struct hists *hists, struct hist_entry *h
 	if (h->filtered)
 		return;
 
-	++hists->nr_non_filtered_entries;
-	if (h->ms.unfolded)
-		hists->nr_non_filtered_entries += h->nr_rows;
+	/* force fold unfiltered entry for simplicity */
+	h->ms.unfolded = false;
 	h->row_offset = 0;
-	hists->stats.total_non_filtered_period += h->stat.period;
+
 	hists->stats.nr_non_filtered_samples += h->stat.nr_events;
 
+	hists__inc_filter_stats(hists, h);
 	hists__calc_col_len(hists, h);
 }
 
@@ -724,10 +742,10 @@ void hists__filter_by_dso(struct hists *hists)
 {
 	struct rb_node *nd;
 
-	hists->nr_non_filtered_entries = 0;
-	hists->stats.total_non_filtered_period = 0;
-	hists->stats.nr_non_filtered_samples = 0;
+	hists__reset_filter_stats(hists);
 	hists__reset_col_len(hists);
+
+	hists->stats.nr_non_filtered_samples = 0;
 
 	for (nd = rb_first(&hists->entries); nd; nd = rb_next(nd)) {
 		struct hist_entry *h = rb_entry(nd, struct hist_entry, rb_node);
@@ -758,10 +776,10 @@ void hists__filter_by_thread(struct hists *hists)
 {
 	struct rb_node *nd;
 
-	hists->nr_non_filtered_entries = 0;
-	hists->stats.total_non_filtered_period = 0;
-	hists->stats.nr_non_filtered_samples = 0;
+	hists__reset_filter_stats(hists);
 	hists__reset_col_len(hists);
+
+	hists->stats.nr_non_filtered_samples = 0;
 
 	for (nd = rb_first(&hists->entries); nd; nd = rb_next(nd)) {
 		struct hist_entry *h = rb_entry(nd, struct hist_entry, rb_node);
@@ -790,10 +808,10 @@ void hists__filter_by_symbol(struct hists *hists)
 {
 	struct rb_node *nd;
 
-	hists->nr_non_filtered_entries = 0;
-	hists->stats.total_non_filtered_period = 0;
-	hists->stats.nr_non_filtered_samples = 0;
+	hists__reset_filter_stats(hists);
 	hists__reset_col_len(hists);
+
+	hists->stats.nr_non_filtered_samples = 0;
 
 	for (nd = rb_first(&hists->entries); nd; nd = rb_next(nd)) {
 		struct hist_entry *h = rb_entry(nd, struct hist_entry, rb_node);
@@ -853,7 +871,7 @@ static struct hist_entry *hists__add_dummy_entry(struct hists *hists,
 		he->hists = hists;
 		rb_link_node(&he->rb_node_in, parent, p);
 		rb_insert_color(&he->rb_node_in, root);
-		hists__inc_nr_entries(hists, he);
+		hists__inc_stats(hists, he);
 		he->dummy = true;
 	}
 out:
