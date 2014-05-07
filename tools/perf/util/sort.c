@@ -1540,3 +1540,21 @@ out:
 
 	return ret;
 }
+
+void reset_output_field(void)
+{
+	struct sort_entry *pos, *tmp;
+
+	sort__need_collapse = 0;
+	sort__has_parent = 0;
+	sort__has_sym = 0;
+	sort__has_dso = 0;
+
+	sort__first_dimension = 0;
+
+	list_for_each_entry_safe(pos, tmp, &hist_entry__sort_list, list)
+		list_del_init(&pos->list);
+
+	reset_dimensions();
+	perf_hpp__reset_output_field();
+}
