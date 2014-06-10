@@ -62,7 +62,10 @@ struct timechart {
 				topology;
 	/* IO related settings */
 	u64			io_events;
-	bool			io_only;
+	bool			io_only,
+				skip_eagain;
+	u64			min_time,
+				merge_dist;
 };
 
 struct per_pidcomm;
@@ -755,7 +758,7 @@ static int pid_end_io_sample(struct timechart *tchart, int pid, int type,
 {
 	struct per_pid *p = find_create_pid(tchart, pid);
 	struct per_pidcomm *c = p->current;
-	struct io_sample *sample;
+	struct io_sample *sample, *prev;
 
 	if (!c) {
 		pr_err("Invalid pidcomm!\n");
@@ -778,6 +781,18 @@ static int pid_end_io_sample(struct timechart *tchart, int pid, int type,
 	}
 
 	sample->end_time = end;
+	prev = sample->next;
+
+	/* we want to be able to see small and fast transfers, so make them
+	 * at least min_time long, but don't overlap them */
+	if (sample->end_time - sample->start_time < tchart->min_time)
+		sample->end_time = sample->start_time + tchart->min_time;
+	if (prev && sample->start_time < prev->end_time) {
+		if (prev->err) /* try to make errors more visible */
+			sample->start_time = prev->end_time;
+		else
+			prev->end_time = sample->start_time;
+	}
 
 	if (ret < 0) {
 		sample->err = ret;
@@ -790,6 +805,24 @@ static int pid_end_io_sample(struct timechart *tchart, int pid, int type,
 		c->total_bytes += ret;
 		p->total_bytes += ret;
 		sample->bytes = ret;
+	}
+
+	/* merge two requests to make svg smaller and render-friendly */
+	if (prev &&
+	    prev->type == sample->type &&
+	    prev->err == sample->err &&
+	    prev->fd == sample->fd &&
+	    prev->end_time + tchart->merge_dist >= sample->start_time) {
+
+		sample->bytes += prev->bytes;
+		sample->merges += prev->merges + 1;
+
+		sample->start_time = prev->start_time;
+		sample->next = prev->next;
+		free(prev);
+
+		if (!sample->err && sample->bytes > c->max_bytes)
+			c->max_bytes = sample->bytes;
 	}
 
 	tchart->io_events++;
@@ -1111,6 +1144,10 @@ static void draw_io_bars(struct timechart *tchart)
 			sample = c->io_samples;
 			for (sample = c->io_samples; sample; sample = sample->next) {
 				double h = (double)sample->bytes / c->max_bytes;
+
+				if (tchart->skip_eagain &&
+				    sample->err == -EAGAIN)
+					continue;
 
 				if (sample->err)
 					h = 1;
@@ -1848,6 +1885,8 @@ int cmd_timechart(int argc, const char **argv,
 			.ordered_samples = true,
 		},
 		.proc_num = 15,
+		.min_time = 1000000,
+		.merge_dist = 1000,
 	};
 	const char *output_name = "output.svg";
 	const struct option timechart_options[] = {
@@ -1869,6 +1908,12 @@ int cmd_timechart(int argc, const char **argv,
 		    "min. number of tasks to print"),
 	OPT_BOOLEAN('t', "topology", &tchart.topology,
 		    "sort CPUs according to topology"),
+	OPT_BOOLEAN(0, "io-skip-eagain", &tchart.skip_eagain,
+		    "skip EAGAIN errors"),
+	OPT_U64(0, "io-min-time", &tchart.min_time,
+		"all IO faster than min-time will visually appear longer"),
+	OPT_U64(0, "io-merge-dist", &tchart.merge_dist,
+		"merge events that are merge-dist us apart"),
 	OPT_END()
 	};
 	const char * const timechart_usage[] = {

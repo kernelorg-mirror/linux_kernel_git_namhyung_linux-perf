@@ -64,6 +64,15 @@ TIMECHART OPTIONS
 	duration or tasks with given name. If number is given it's interpreted
 	as number of nanoseconds. If non-numeric string is given it's
 	interpreted as task name.
+--io-skip-eagain::
+	Don't draw EAGAIN IO events.
+--io-min-time::
+	Draw small events as if they lasted min-time. Useful when you need
+	to see very small and fast IO. Default value is 1ms.
+--io-merge-dist::
+	Merge events that are merge-dist nanoseconds apart.
+	Reduces number of figures on the SVG and makes it more render-friendly.
+	Default value is 1us.
 
 RECORD OPTIONS
 --------------
