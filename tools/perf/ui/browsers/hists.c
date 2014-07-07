@@ -678,12 +678,12 @@ static u64 __hpp_get_##_field(struct hist_entry *he)			\
 }									\
 									\
 static int								\
-hist_browser__hpp_color_##_type(struct perf_hpp_fmt *fmt __maybe_unused,\
+hist_browser__hpp_color_##_type(struct perf_hpp_fmt *fmt,		\
 				struct perf_hpp *hpp,			\
 				struct hist_entry *he)			\
 {									\
-	return __hpp__fmt(hpp, he, __hpp_get_##_field, " %*.2f%%", 6,	\
-			  __hpp__slsmg_color_printf, true);		\
+	return hpp__fmt(fmt, hpp, he, __hpp_get_##_field, " %*.2f%%",	\
+			__hpp__slsmg_color_printf, true);		\
 }
 
 #define __HPP_COLOR_ACC_PERCENT_FN(_type, _field)			\
@@ -693,19 +693,20 @@ static u64 __hpp_get_acc_##_field(struct hist_entry *he)		\
 }									\
 									\
 static int								\
-hist_browser__hpp_color_##_type(struct perf_hpp_fmt *fmt __maybe_unused,\
+hist_browser__hpp_color_##_type(struct perf_hpp_fmt *fmt,		\
 				struct perf_hpp *hpp,			\
 				struct hist_entry *he)			\
 {									\
 	if (!symbol_conf.cumulate_callchain) {				\
+		int len = fmt->user_len ?: fmt->len;			\
 		int ret = scnprintf(hpp->buf, hpp->size,		\
-				    "%*s", 8, "N/A");			\
+				    "%*s", len, "N/A");			\
 		slsmg_printf("%s", hpp->buf);				\
 									\
 		return ret;						\
 	}								\
-	return __hpp__fmt(hpp, he, __hpp_get_acc_##_field, " %*.2f%%",	\
-			  6, __hpp__slsmg_color_printf, true);	\
+	return hpp__fmt(fmt, hpp, he, __hpp_get_acc_##_field,		\
+			" %*.2f%%", __hpp__slsmg_color_printf, true);	\
 }
 
 __HPP_COLOR_PERCENT_FN(overhead, period)
@@ -797,8 +798,11 @@ static int hist_browser__show_entry(struct hist_browser *browser,
 			if (fmt->color) {
 				width -= fmt->color(fmt, &hpp, entry);
 			} else {
-				width -= fmt->entry(fmt, &hpp, entry);
+				int ret = fmt->entry(fmt, &hpp, entry);
+				s[ret] = '\0';
 				slsmg_printf("%s", s);
+
+				width -= ret;
 			}
 		}
 
@@ -1548,6 +1552,9 @@ static int perf_evsel__hists_browse(struct perf_evsel *evsel, int nr_events,
 	ui_helpline__push(helpline);
 
 	memset(options, 0, sizeof(options));
+
+	if (symbol_conf.col_width_list_str)
+		perf_hpp__set_user_width(symbol_conf.col_width_list_str);
 
 	while (1) {
 		const struct thread *thread = NULL;
