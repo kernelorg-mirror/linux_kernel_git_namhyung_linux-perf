@@ -341,7 +341,7 @@ static void machine__update_thread_pid(struct machine *machine,
 		goto out_err;
 
 	if (!leader->mg)
-		leader->mg = map_groups__new(machine);
+		thread__set_map_groups(leader, map_groups__new(machine), 0);
 
 	if (!leader->mg)
 		goto out_err;
@@ -358,7 +358,7 @@ static void machine__update_thread_pid(struct machine *machine,
 		if (!map_groups__empty(th->mg))
 			pr_err("Discarding thread maps for %d:%d\n",
 			       th->pid_, th->tid);
-		map_groups__delete(th->mg);
+		map_groups__put(th->mg);
 	}
 
 	th->mg = map_groups__get(leader->mg);
