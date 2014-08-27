@@ -349,8 +349,19 @@ static void machine__update_thread_pid(struct machine *machine,
 	if (!leader)
 		goto out_err;
 
-	if (!leader->mg)
-		leader->mg = map_groups__new(machine);
+	if (!leader->mg) {
+		struct map_groups *mg = map_groups__new(machine);
+
+		if (mg == NULL) {
+			pr_err("Not enough memory for map groups\n");
+			return;
+		}
+
+		if (thread__set_map_groups(leader, mg, 0) < 0) {
+			map_groups__put(mg);
+			goto out_err;
+		}
+	}
 
 	if (!leader->mg)
 		goto out_err;
