@@ -191,6 +191,10 @@ static struct test {
 		.func = test_session_topology,
 	},
 	{
+		.desc = "Test thread comm handling",
+		.func = test__thread_comm,
+	},
+	{
 		.func = NULL,
 	},
 };
