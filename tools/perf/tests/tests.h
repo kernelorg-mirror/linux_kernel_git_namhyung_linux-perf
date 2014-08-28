@@ -67,6 +67,7 @@ int test__insn_x86(void);
 int test_session_topology(void);
 int test__thread_comm(void);
 int test__thread_lookup_time(void);
+int test__thread_mg_time(void);
 
 #if defined(__x86_64__) || defined(__i386__) || defined(__arm__) || defined(__aarch64__)
 #ifdef HAVE_DWARF_UNWIND_SUPPORT
