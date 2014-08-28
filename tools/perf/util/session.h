@@ -142,4 +142,42 @@ static inline bool perf_session__has_index(struct perf_session *session)
 	return perf_header__has_feat(&session->header, HEADER_DATA_INDEX);
 }
 
+static inline void
+session__find_addr_map(struct perf_session *session, struct thread *thread,
+		       u8 cpumode, enum map_type type, u64 addr,
+		       struct addr_location *al, u64 timestamp)
+{
+	if (session && perf_session__has_index(session))
+		thread__find_addr_map_time(thread, cpumode, type, addr, al,
+					   timestamp);
+	else
+		thread__find_addr_map(thread, cpumode, type, addr, al);
+}
+
+static inline void
+session__find_addr_location(struct perf_session *session, struct thread *thread,
+			    u8 cpumode, enum map_type type, u64 addr,
+			    struct addr_location *al, u64 timestamp)
+{
+	if (session && perf_session__has_index(session))
+		thread__find_addr_location_time(thread, cpumode, type, addr, al,
+						timestamp);
+	else
+		thread__find_addr_location(thread, cpumode, type, addr, al);
+}
+
+static inline void
+session__find_cpumode_addr_location(struct perf_session *session,
+				    struct thread *thread, enum map_type type,
+				    u64 addr, struct addr_location *al,
+				    u64 timestamp)
+{
+	if (session && perf_session__has_index(session))
+		thread__find_cpumode_addr_location_time(thread, type, addr, al,
+							timestamp);
+	else
+		thread__find_cpumode_addr_location(thread, type, addr, al);
+}
+
+
 #endif /* __PERF_SESSION_H */

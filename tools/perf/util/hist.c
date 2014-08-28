@@ -496,7 +496,7 @@ iter_prepare_mem_entry(struct hist_entry_iter *iter, struct addr_location *al)
 	struct perf_sample *sample = iter->sample;
 	struct mem_info *mi;
 
-	mi = sample__resolve_mem(sample, al);
+	mi = sample__resolve_mem(sample, iter->session, al);
 	if (mi == NULL)
 		return -ENOMEM;
 
@@ -570,7 +570,7 @@ iter_prepare_branch_entry(struct hist_entry_iter *iter, struct addr_location *al
 	struct branch_info *bi;
 	struct perf_sample *sample = iter->sample;
 
-	bi = sample__resolve_bstack(sample, al);
+	bi = sample__resolve_bstack(sample, iter->session, al);
 	if (!bi)
 		return -ENOMEM;
 

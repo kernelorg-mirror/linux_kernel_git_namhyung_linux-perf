@@ -121,8 +121,10 @@ void machine__delete_threads(struct machine *machine);
 void machine__delete(struct machine *machine);
 
 struct branch_info *sample__resolve_bstack(struct perf_sample *sample,
+					   struct perf_session *session,
 					   struct addr_location *al);
 struct mem_info *sample__resolve_mem(struct perf_sample *sample,
+				     struct perf_session *session,
 				     struct addr_location *al);
 int thread__resolve_callchain(struct thread *thread,
 			      struct perf_evsel *evsel,
