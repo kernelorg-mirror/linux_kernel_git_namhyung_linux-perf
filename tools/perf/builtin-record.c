@@ -38,6 +38,7 @@ struct record {
 	struct record_opts	opts;
 	u64			bytes_written;
 	struct perf_data_file	file;
+	int			*fds;
 	struct perf_evlist	*evlist;
 	struct perf_session	*session;
 	const char		*progname;
@@ -47,14 +48,23 @@ struct record {
 	long			samples;
 };
 
-static int record__write(struct record *rec, void *bf, size_t size)
+static int record__write(struct record *rec, void *bf, size_t size, int idx)
 {
-	if (perf_data_file__write(rec->session->file, bf, size) < 0) {
+	int fd;
+
+	if (rec->fds && idx >= 0) {
+		fd = rec->fds[idx];
+		/* do not update data size for index files */
+	} else {
+		fd = perf_data_file__fd(rec->session->file);
+		rec->bytes_written += size;
+	}
+
+	if (writen(fd, bf, size) < 0) {
 		pr_err("failed to write perf data, error: %m\n");
 		return -1;
 	}
 
-	rec->bytes_written += size;
 	return 0;
 }
 
@@ -64,7 +74,7 @@ static int process_synthesized_event(struct perf_tool *tool,
 				     struct machine *machine __maybe_unused)
 {
 	struct record *rec = container_of(tool, struct record, tool);
-	return record__write(rec, event, event->header.size);
+	return record__write(rec, event, event->header.size, -1);
 }
 
 static int record__mmap_read(struct record *rec, int idx)
@@ -89,7 +99,7 @@ static int record__mmap_read(struct record *rec, int idx)
 		size = md->mask + 1 - (old & md->mask);
 		old += size;
 
-		if (record__write(rec, buf, size) < 0) {
+		if (record__write(rec, buf, size, idx) < 0) {
 			rc = -1;
 			goto out;
 		}
@@ -99,7 +109,7 @@ static int record__mmap_read(struct record *rec, int idx)
 	size = head - old;
 	old += size;
 
-	if (record__write(rec, buf, size) < 0) {
+	if (record__write(rec, buf, size, idx) < 0) {
 		rc = -1;
 		goto out;
 	}
@@ -109,6 +119,113 @@ static int record__mmap_read(struct record *rec, int idx)
 	perf_evlist__mmap_consume(rec->evlist, idx);
 out:
 	return rc;
+}
+
+#define INDEX_FILE_FMT  "%s.dir/perf.data.%d"
+
+static int record__create_index_files(struct record *rec, int nr_index)
+{
+	int i = 0;
+	int ret = -1;
+	char path[PATH_MAX];
+	struct perf_data_file *file = &rec->file;
+
+	rec->fds = malloc(nr_index * sizeof(int));
+	if (rec->fds == NULL)
+		return -ENOMEM;
+
+	scnprintf(path, sizeof(path), "%s.dir", file->path);
+	if (mkdir(path, S_IRWXU) < 0)
+		goto out_err;
+
+	for (i = 0; i < nr_index; i++) {
+		scnprintf(path, sizeof(path), INDEX_FILE_FMT, file->path, i);
+		ret = open(path, O_RDWR|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR);
+		if (ret < 0)
+			goto out_err;
+
+		rec->fds[i] = ret;
+	}
+	return 0;
+
+out_err:
+	while (--i >= 0)
+		close(rec->fds[i]);
+	zfree(&rec->fds);
+
+	scnprintf(path, sizeof(path), "%s.dir", file->path);
+	rm_rf(path);
+
+	return ret;
+}
+
+static int record__merge_index_files(struct record *rec, int nr_index)
+{
+	int i;
+	int ret = -1;
+	u64 offset;
+	char path[PATH_MAX];
+	struct perf_file_section *idx;
+	struct perf_data_file *file = &rec->file;
+	struct perf_session *session = rec->session;
+	int output_fd = perf_data_file__fd(file);
+
+	idx = calloc(nr_index, sizeof(*idx));
+	if (idx == NULL)
+		goto out_close;
+
+	/* index data will be placed after header */
+	offset = lseek(output_fd, 0, SEEK_END);
+	if (offset == (u64)(loff_t) -1)
+		goto out_close;
+
+	/*
+	 * increase the offset for header features (including index).
+	 * which set later.  we cannot know exact size at this stage,
+	 * but I guess 1MB should be enough..
+	 */
+	offset += 1024 * 1024;
+	offset = PERF_ALIGN(offset, page_size);
+
+	for (i = 0; i < nr_index; i++) {
+		struct stat stbuf;
+		int fd = rec->fds[i];
+
+		if (fstat(fd, &stbuf) < 0)
+			goto out_close;
+
+		idx[i].offset = offset;
+		idx[i].size   = stbuf.st_size;
+
+		offset += PERF_ALIGN(stbuf.st_size, page_size);
+	}
+
+	session->header.index = idx;
+	session->header.nr_index = nr_index;
+
+	/* copy sample events */
+	for (i = 0; i < nr_index; i++) {
+		int fd = rec->fds[i];
+
+		if (idx[i].size == 0)
+			continue;
+
+		if (copyfile_offset(fd, 0, output_fd, idx[i].offset,
+				    idx[i].size) < 0)
+			goto out_close;
+	}
+
+	ret = 0;
+
+out_close:
+	for (i = 0; i < nr_index; i++)
+		close(rec->fds[i]);
+
+	scnprintf(path, sizeof(path), "%s.dir", file->path);
+	rm_rf(path);
+
+	zfree(&rec->fds);
+	return ret;
 }
 
 static volatile int done = 0;
@@ -170,7 +287,7 @@ try_again:
 	}
 
 	if (perf_evlist__mmap_track(evlist, opts->mmap_pages, false,
-				    false) < 0) {
+				    opts->index) < 0) {
 		if (errno == EPERM) {
 			pr_err("Permission error mapping pages.\n"
 			       "Consider increasing "
@@ -184,6 +301,12 @@ try_again:
 			rc = -errno;
 		}
 		goto out;
+	}
+
+	if (opts->index) {
+		rc = record__create_index_files(rec, evlist->nr_mmaps);
+		if (rc < 0)
+			goto out;
 	}
 
 	session->evlist = evlist;
@@ -210,7 +333,8 @@ static int process_buildids(struct record *rec)
 	struct perf_data_file *file  = &rec->file;
 	struct perf_session *session = rec->session;
 
-	u64 size = lseek(perf_data_file__fd(file), 0, SEEK_CUR);
+	/* update file size after merging sample files with index */
+	u64 size = lseek(perf_data_file__fd(file), 0, SEEK_END);
 	if (size == 0)
 		return 0;
 
@@ -290,7 +414,8 @@ static int record__mmap_read_all(struct record *rec)
 	 * at least one event.
 	 */
 	if (bytes_written != rec->bytes_written)
-		rc = record__write(rec, &finished_round_event, sizeof(finished_round_event));
+		rc = record__write(rec, &finished_round_event,
+				   sizeof(finished_round_event), -1);
 
 out:
 	return rc;
@@ -313,7 +438,8 @@ static void record__init_features(struct record *rec)
 	if (!rec->opts.branch_stack)
 		perf_header__clear_feat(&session->header, HEADER_BRANCH_STACK);
 
-	perf_header__clear_feat(&session->header, HEADER_DATA_INDEX);
+	if (!rec->opts.index)
+		perf_header__clear_feat(&session->header, HEADER_DATA_INDEX);
 }
 
 static volatile int workload_exec_errno;
@@ -373,6 +499,11 @@ static int __cmd_record(struct record *rec, int argc, const char **argv)
 			status = err;
 			goto out_delete_session;
 		}
+	}
+
+	if (file->is_pipe && opts->index) {
+		pr_warning("Indexing is disabled for pipe output\n");
+		opts->index = false;
 	}
 
 	if (record__open(rec) != 0) {
@@ -553,6 +684,9 @@ out_child:
 
 	if (!err && !file->is_pipe) {
 		rec->session->header.data_size += rec->bytes_written;
+
+		if (rec->opts.index)
+			record__merge_index_files(rec, rec->evlist->nr_mmaps);
 
 		if (!rec->no_buildid)
 			process_buildids(rec);
@@ -849,6 +983,8 @@ struct option __record_options[] = {
 		    "use per-thread mmaps"),
 	OPT_BOOLEAN('I', "intr-regs", &record.opts.sample_intr_regs,
 		    "Sample machine registers on interrupt"),
+	OPT_BOOLEAN(0, "index", &record.opts.index,
+		    "make index for sample data to speed-up processing"),
 	OPT_END()
 };
 
@@ -896,6 +1032,15 @@ int cmd_record(int argc, const char **argv, const char *prefix __maybe_unused)
 	    perf_evlist__add_default(rec->evlist) < 0) {
 		pr_err("Not enough memory for event selector list\n");
 		goto out_symbol_exit;
+	}
+
+	if (rec->opts.index) {
+		if (!rec->opts.sample_time) {
+			pr_err("Sample timestamp is required for indexing\n");
+			goto out_symbol_exit;
+		}
+
+		perf_evlist__add_dummy_tracking(rec->evlist);
 	}
 
 	if (rec->opts.target.tid && !rec->opts.no_inherit_set)
