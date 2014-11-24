@@ -54,6 +54,7 @@ struct record_opts {
 	bool	     period;
 	bool	     sample_intr_regs;
 	bool	     running_time;
+	bool	     index;
 	unsigned int freq;
 	unsigned int mmap_pages;
 	unsigned int user_freq;
