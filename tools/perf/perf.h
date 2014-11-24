@@ -60,6 +60,7 @@ struct record_opts {
 	bool	     full_auxtrace;
 	bool	     auxtrace_snapshot_mode;
 	bool	     record_switch_events;
+	bool	     index;
 	unsigned int freq;
 	unsigned int mmap_pages;
 	unsigned int auxtrace_mmap_pages;
