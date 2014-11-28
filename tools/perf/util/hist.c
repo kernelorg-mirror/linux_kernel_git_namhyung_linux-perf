@@ -447,11 +447,11 @@ struct hist_entry *__hists__add_entry(struct hists *hists,
 				      struct branch_info *bi,
 				      struct mem_info *mi,
 				      u64 period, u64 weight, u64 transaction,
-				      bool sample_self)
+				      u64 timestamp, bool sample_self)
 {
 	struct hist_entry entry = {
 		.thread	= al->thread,
-		.comm = thread__comm(al->thread),
+		.comm = thread__comm_by_time(al->thread, timestamp),
 		.ms = {
 			.map	= al->map,
 			.sym	= al->sym,
@@ -510,13 +510,14 @@ iter_add_single_mem_entry(struct hist_entry_iter *iter, struct addr_location *al
 {
 	u64 cost;
 	struct mem_info *mi = iter->priv;
+	struct perf_sample *sample = iter->sample;
 	struct hists *hists = evsel__hists(iter->evsel);
 	struct hist_entry *he;
 
 	if (mi == NULL)
 		return -EINVAL;
 
-	cost = iter->sample->weight;
+	cost = sample->weight;
 	if (!cost)
 		cost = 1;
 
@@ -528,7 +529,7 @@ iter_add_single_mem_entry(struct hist_entry_iter *iter, struct addr_location *al
 	 * and the he_stat__add_period() function.
 	 */
 	he = __hists__add_entry(hists, al, iter->parent, NULL, mi,
-				cost, cost, 0, true);
+				cost, cost, 0, sample->time, true);
 	if (!he)
 		return -ENOMEM;
 
@@ -630,7 +631,7 @@ iter_add_next_branch_entry(struct hist_entry_iter *iter, struct addr_location *a
 	 */
 	he = __hists__add_entry(hists, al, iter->parent, &bi[i], NULL,
 				1, bi->flags.cycles ? bi->flags.cycles : 1,
-				0, true);
+				0, iter->sample->time, true);
 	if (he == NULL)
 		return -ENOMEM;
 
@@ -668,7 +669,7 @@ iter_add_single_normal_entry(struct hist_entry_iter *iter, struct addr_location 
 
 	he = __hists__add_entry(evsel__hists(evsel), al, iter->parent, NULL, NULL,
 				sample->period, sample->weight,
-				sample->transaction, true);
+				sample->transaction, sample->time, true);
 	if (he == NULL)
 		return -ENOMEM;
 
@@ -730,7 +731,7 @@ iter_add_single_cumulative_entry(struct hist_entry_iter *iter,
 
 	he = __hists__add_entry(hists, al, iter->parent, NULL, NULL,
 				sample->period, sample->weight,
-				sample->transaction, true);
+				sample->transaction, sample->time, true);
 	if (he == NULL)
 		return -ENOMEM;
 
@@ -775,7 +776,7 @@ iter_add_next_cumulative_entry(struct hist_entry_iter *iter,
 		.hists = evsel__hists(evsel),
 		.cpu = al->cpu,
 		.thread = al->thread,
-		.comm = thread__comm(al->thread),
+		.comm = thread__comm_by_time(al->thread, sample->time),
 		.ip = al->addr,
 		.ms = {
 			.map = al->map,
@@ -804,7 +805,7 @@ iter_add_next_cumulative_entry(struct hist_entry_iter *iter,
 
 	he = __hists__add_entry(evsel__hists(evsel), al, iter->parent, NULL, NULL,
 				sample->period, sample->weight,
-				sample->transaction, false);
+				sample->transaction, sample->time, false);
 	if (he == NULL)
 		return -ENOMEM;
 
