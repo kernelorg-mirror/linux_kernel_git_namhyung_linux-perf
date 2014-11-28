@@ -138,4 +138,9 @@ int perf_event__synthesize_id_index(struct perf_tool *tool,
 				    struct perf_evlist *evlist,
 				    struct machine *machine);
 
+static inline bool perf_session__has_index(struct perf_session *session)
+{
+	return perf_header__has_feat(&session->header, HEADER_DATA_INDEX);
+}
+
 #endif /* __PERF_SESSION_H */

@@ -1251,11 +1251,10 @@ fetch_mmaped_event(struct perf_session *session,
 #define NUM_MMAPS 128
 #endif
 
-static int __perf_session__process_events(struct perf_session *session,
+static int __perf_session__process_events(struct perf_session *session, int fd,
 					  u64 data_offset, u64 data_size,
 					  u64 file_size, struct perf_tool *tool)
 {
-	int fd = perf_data_file__fd(session->file);
 	u64 head, page_offset, file_offset, file_pos, size;
 	int err, mmap_prot, mmap_flags, map_idx = 0;
 	size_t	mmap_size;
@@ -1278,7 +1277,9 @@ static int __perf_session__process_events(struct perf_session *session,
 	mmap_size = MMAP_SIZE;
 	if (mmap_size > file_size) {
 		mmap_size = file_size;
-		session->one_mmap = true;
+
+		if (!perf_session__has_index(session))
+			session->one_mmap = true;
 	}
 
 	memset(mmaps, 0, sizeof(mmaps));
@@ -1360,19 +1361,43 @@ out_err:
 int perf_session__process_events(struct perf_session *session,
 				 struct perf_tool *tool)
 {
-	u64 size = perf_data_file__size(session->file);
-	int err;
+	struct perf_data_file *file = session->file;
+	u64 size = perf_data_file__size(file);
+	int err, i;
 
 	if (perf_session__register_idle_thread(session) == NULL)
 		return -ENOMEM;
 
-	if (!perf_data_file__is_pipe(session->file))
+	if (perf_data_file__is_pipe(file))
+		return __perf_session__process_pipe_events(session, tool);
+
+	err = __perf_session__process_events(session,
+					     perf_data_file__fd(file),
+					     session->header.data_offset,
+					     session->header.data_size,
+					     size, tool);
+
+	if (err < 0 || !perf_session__has_index(session))
+		return err;
+
+	/*
+	 * For indexed data file, events are processed for
+	 * each cpu/thread so it's already ordered.
+	 */
+	tool->ordered_events = false;
+
+	for (i = 0; i < (int)session->header.nr_index; i++) {
+		if (!session->header.index[i].size)
+			continue;
+
 		err = __perf_session__process_events(session,
-						     session->header.data_offset,
-						     session->header.data_size,
-						     size, tool);
-	else
-		err = __perf_session__process_pipe_events(session, tool);
+						perf_data_file__fd(file),
+						session->header.index[i].offset,
+						session->header.index[i].size,
+						size, tool);
+		if (err < 0)
+			break;
+	}
 
 	return err;
 }
