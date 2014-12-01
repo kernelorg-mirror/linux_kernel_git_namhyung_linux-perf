@@ -559,8 +559,15 @@ static int process_sample_event(struct perf_tool *tool,
 {
 	struct addr_location al;
 	struct perf_script *script = container_of(tool, struct perf_script, tool);
-	struct thread *thread = machine__findnew_thread(machine, sample->pid,
-							sample->tid);
+	struct thread *thread;
+
+	if (perf_session__has_index(script->session))
+		thread = machine__findnew_thread_time(machine, sample->pid,
+						      sample->tid,
+						      sample->time);
+	else
+		thread = machine__findnew_thread(machine, sample->pid,
+						 sample->tid);
 
 	if (thread == NULL) {
 		pr_debug("problem processing %d event, skipping it.\n",
