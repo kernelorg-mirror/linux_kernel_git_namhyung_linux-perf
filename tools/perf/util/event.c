@@ -9,6 +9,7 @@
 #include "strlist.h"
 #include "thread.h"
 #include "thread_map.h"
+#include "session.h"
 #include "symbol/kallsyms.h"
 
 static const char *perf_event__names[] = {
@@ -823,11 +824,18 @@ int perf_event__preprocess_sample(const union perf_event *event,
 				  struct machine *machine,
 				  struct addr_location *al,
 				  struct perf_sample *sample,
-				  struct perf_session *session __maybe_unused)
+				  struct perf_session *session)
 {
 	u8 cpumode = event->header.misc & PERF_RECORD_MISC_CPUMODE_MASK;
-	struct thread *thread = machine__findnew_thread(machine, sample->pid,
-							sample->tid);
+	struct thread *thread;
+
+	if (session && perf_session__has_index(session))
+		thread = machine__findnew_thread_time(machine, sample->pid,
+						      sample->tid,
+						      sample->time);
+	else
+		thread = machine__findnew_thread(machine, sample->pid,
+						 sample->tid);
 
 	if (thread == NULL)
 		return -1;
