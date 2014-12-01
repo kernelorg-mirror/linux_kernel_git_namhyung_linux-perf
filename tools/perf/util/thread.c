@@ -9,6 +9,7 @@
 #include "debug.h"
 #include "comm.h"
 #include "unwind.h"
+#include "machine.h"
 
 int thread__init_map_groups(struct thread *thread, struct machine *machine)
 {
@@ -38,6 +39,7 @@ struct thread *thread__new(pid_t pid, pid_t tid)
 		thread->ppid = -1;
 		thread->cpu = -1;
 		INIT_LIST_HEAD(&thread->comm_list);
+		INIT_LIST_HEAD(&thread->tid_node);
 
 		if (unwind__prepare_access(thread) < 0)
 			goto err_thread;
@@ -54,7 +56,7 @@ struct thread *thread__new(pid_t pid, pid_t tid)
 
 		list_add(&comm->list, &thread->comm_list);
 		atomic_set(&thread->refcnt, 0);
-		INIT_LIST_HEAD(&thread->node);
+		INIT_LIST_HEAD(&thread->tid_node);
 		RB_CLEAR_NODE(&thread->rb_node);
 	}
 
@@ -70,7 +72,7 @@ void thread__delete(struct thread *thread)
 	struct comm *comm, *tmp;
 
 	BUG_ON(!RB_EMPTY_NODE(&thread->rb_node));
-	BUG_ON(!list_empty(&thread->node));
+	BUG_ON(!list_empty(&thread->tid_node));
 
 	thread_stack__free(thread);
 
@@ -97,7 +99,20 @@ struct thread *thread__get(struct thread *thread)
 void thread__put(struct thread *thread)
 {
 	if (thread && atomic_dec_and_test(&thread->refcnt)) {
-		list_del_init(&thread->node);
+		if (!RB_EMPTY_NODE(&thread->rb_node)) {
+			struct machine *machine = thread->mg->machine;
+
+			if (thread->dead) {
+				rb_erase(&thread->rb_node,
+					 &machine->dead_threads);
+			} else {
+				rb_erase(&thread->rb_node,
+					 &machine->threads);
+			}
+			RB_CLEAR_NODE(&thread->rb_node);
+		}
+
+		list_del_init(&thread->tid_node);
 		thread__delete(thread);
 	}
 }

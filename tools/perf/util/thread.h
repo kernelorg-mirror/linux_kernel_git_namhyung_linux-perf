@@ -13,10 +13,8 @@
 struct thread_stack;
 
 struct thread {
-	union {
-		struct rb_node	 rb_node;
-		struct list_head node;
-	};
+	struct rb_node	 	rb_node;
+	struct list_head 	tid_node;
 	struct map_groups	*mg;
 	pid_t			pid_; /* Not all tools update this */
 	pid_t			tid;
@@ -25,7 +23,8 @@ struct thread {
 	atomic_t		refcnt;
 	char			shortname[3];
 	bool			comm_set;
-	bool			dead; /* if set thread has exited */
+	bool			exited; /* if set thread has exited */
+	bool			dead; /* thread is in dead_threads list */
 	struct list_head	comm_list;
 	int			comm_len;
 	u64			db_id;
@@ -54,7 +53,7 @@ static inline void __thread__zput(struct thread **thread)
 
 static inline void thread__exited(struct thread *thread)
 {
-	thread->dead = true;
+	thread->exited = true;
 }
 
 int __thread__set_comm(struct thread *thread, const char *comm, u64 timestamp,
