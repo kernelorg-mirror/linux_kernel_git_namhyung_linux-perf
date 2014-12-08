@@ -863,6 +863,7 @@ static int perf_evlist__alloc_mmap(struct perf_evlist *evlist, bool track_mmap)
 
 struct mmap_params {
 	int	prot;
+	bool	track;
 	size_t	len;
 	struct auxtrace_mmap_params auxtrace_mp;
 };
@@ -913,7 +914,7 @@ static int perf_evlist__mmap_per_evsel(struct perf_evlist *evlist, int idx,
 
 		fd = FD(evsel, cpu, thread);
 
-		if (perf_evsel__is_dummy_tracking(evsel)) {
+		if (mp->track && perf_evsel__is_dummy_tracking(evsel)) {
 			struct mmap_params track_mp = {
 				.prot	= mp->prot,
 				.len	= TRACK_MMAP_SIZE,
@@ -971,7 +972,7 @@ static int perf_evlist__mmap_per_evsel(struct perf_evlist *evlist, int idx,
 						 thread);
 		}
 
-		if (perf_evsel__is_dummy_tracking(evsel)) {
+		if (mp->track && perf_evsel__is_dummy_tracking(evsel)) {
 			/* restore idx as normal idx (positive) */
 			idx = track_mmap_idx(idx);
 		}
@@ -1138,6 +1139,7 @@ int perf_evlist__parse_mmap_pages(const struct option *opt, const char *str,
  * @overwrite: overwrite older events?
  * @auxtrace_pages - auxtrace map length in pages
  * @auxtrace_overwrite - overwrite older auxtrace data?
+ * @use_track_mmap: use another mmaps to track meta events
  *
  * If @overwrite is %false the user needs to signal event consumption using
  * perf_mmap__write_tail().  Using perf_evlist__mmap_read() does this
@@ -1150,16 +1152,17 @@ int perf_evlist__parse_mmap_pages(const struct option *opt, const char *str,
  */
 int perf_evlist__mmap_ex(struct perf_evlist *evlist, unsigned int pages,
 			 bool overwrite, unsigned int auxtrace_pages,
-			 bool auxtrace_overwrite)
+			 bool auxtrace_overwrite, bool use_track_mmap)
 {
 	struct perf_evsel *evsel;
 	const struct cpu_map *cpus = evlist->cpus;
 	const struct thread_map *threads = evlist->threads;
 	struct mmap_params mp = {
 		.prot = PROT_READ | (overwrite ? 0 : PROT_WRITE),
+		.track = use_track_mmap,
 	};
 
-	if (evlist->mmap == NULL && perf_evlist__alloc_mmap(evlist, true) < 0)
+	if (evlist->mmap == NULL && perf_evlist__alloc_mmap(evlist, mp.track) < 0)
 		return -ENOMEM;
 
 	if (evlist->pollfd.entries == NULL && perf_evlist__alloc_pollfd(evlist) < 0)
@@ -1189,7 +1192,7 @@ int perf_evlist__mmap_ex(struct perf_evlist *evlist, unsigned int pages,
 int perf_evlist__mmap(struct perf_evlist *evlist, unsigned int pages,
 		      bool overwrite)
 {
-	return perf_evlist__mmap_ex(evlist, pages, overwrite, 0, false);
+	return perf_evlist__mmap_ex(evlist, pages, overwrite, 0, false, false);
 }
 
 int perf_evlist__create_maps(struct perf_evlist *evlist, struct target *target)
