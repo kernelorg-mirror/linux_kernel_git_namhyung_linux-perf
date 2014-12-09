@@ -144,6 +144,7 @@ static int process_sample_event(struct perf_tool *tool,
 	struct addr_location al;
 	struct hist_entry_iter iter = {
 		.evsel 			= evsel,
+		.hists 			= evsel__hists(evsel),
 		.sample 		= sample,
 		.hide_unresolved 	= symbol_conf.hide_unresolved,
 		.add_entry_cb 		= hist_iter__report_callback,
