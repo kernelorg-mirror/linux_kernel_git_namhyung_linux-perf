@@ -511,7 +511,7 @@ iter_add_single_mem_entry(struct hist_entry_iter *iter, struct addr_location *al
 	u64 cost;
 	struct mem_info *mi = iter->priv;
 	struct perf_sample *sample = iter->sample;
-	struct hists *hists = evsel__hists(iter->evsel);
+	struct hists *hists = iter->hists;
 	struct hist_entry *he;
 
 	if (mi == NULL)
@@ -541,8 +541,7 @@ static int
 iter_finish_mem_entry(struct hist_entry_iter *iter,
 		      struct addr_location *al __maybe_unused)
 {
-	struct perf_evsel *evsel = iter->evsel;
-	struct hists *hists = evsel__hists(evsel);
+	struct hists *hists = iter->hists;
 	struct hist_entry *he = iter->he;
 	int err = -EINVAL;
 
@@ -614,8 +613,7 @@ static int
 iter_add_next_branch_entry(struct hist_entry_iter *iter, struct addr_location *al)
 {
 	struct branch_info *bi;
-	struct perf_evsel *evsel = iter->evsel;
-	struct hists *hists = evsel__hists(evsel);
+	struct hists *hists = iter->hists;
 	struct hist_entry *he = NULL;
 	int i = iter->curr;
 	int err = 0;
@@ -663,11 +661,10 @@ iter_prepare_normal_entry(struct hist_entry_iter *iter __maybe_unused,
 static int
 iter_add_single_normal_entry(struct hist_entry_iter *iter, struct addr_location *al)
 {
-	struct perf_evsel *evsel = iter->evsel;
 	struct perf_sample *sample = iter->sample;
 	struct hist_entry *he;
 
-	he = __hists__add_entry(evsel__hists(evsel), al, iter->parent, NULL, NULL,
+	he = __hists__add_entry(iter->hists, al, iter->parent, NULL, NULL,
 				sample->period, sample->weight,
 				sample->transaction, sample->time, true);
 	if (he == NULL)
@@ -682,7 +679,6 @@ iter_finish_normal_entry(struct hist_entry_iter *iter,
 			 struct addr_location *al __maybe_unused)
 {
 	struct hist_entry *he = iter->he;
-	struct perf_evsel *evsel = iter->evsel;
 	struct perf_sample *sample = iter->sample;
 
 	if (he == NULL)
@@ -690,7 +686,7 @@ iter_finish_normal_entry(struct hist_entry_iter *iter,
 
 	iter->he = NULL;
 
-	hists__inc_nr_samples(evsel__hists(evsel), he->filtered);
+	hists__inc_nr_samples(iter->hists, he->filtered);
 
 	return hist_entry__append_callchain(he, sample);
 }
@@ -722,8 +718,7 @@ static int
 iter_add_single_cumulative_entry(struct hist_entry_iter *iter,
 				 struct addr_location *al)
 {
-	struct perf_evsel *evsel = iter->evsel;
-	struct hists *hists = evsel__hists(evsel);
+	struct hists *hists = iter->hists;
 	struct perf_sample *sample = iter->sample;
 	struct hist_entry **he_cache = iter->priv;
 	struct hist_entry *he;
@@ -768,12 +763,11 @@ static int
 iter_add_next_cumulative_entry(struct hist_entry_iter *iter,
 			       struct addr_location *al)
 {
-	struct perf_evsel *evsel = iter->evsel;
 	struct perf_sample *sample = iter->sample;
 	struct hist_entry **he_cache = iter->priv;
 	struct hist_entry *he;
 	struct hist_entry he_tmp = {
-		.hists = evsel__hists(evsel),
+		.hists = iter->hists,
 		.cpu = al->cpu,
 		.thread = al->thread,
 		.comm = thread__comm_by_time(al->thread, sample->time),
@@ -803,7 +797,7 @@ iter_add_next_cumulative_entry(struct hist_entry_iter *iter,
 		}
 	}
 
-	he = __hists__add_entry(evsel__hists(evsel), al, iter->parent, NULL, NULL,
+	he = __hists__add_entry(iter->hists, al, iter->parent, NULL, NULL,
 				sample->period, sample->weight,
 				sample->transaction, sample->time, false);
 	if (he == NULL)
