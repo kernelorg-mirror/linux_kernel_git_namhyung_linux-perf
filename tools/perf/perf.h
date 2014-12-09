@@ -31,6 +31,9 @@ static inline unsigned long long rdclock(void)
 
 #define MAX_NR_CPUS			1024
 
+#define BUILD_ID_SIZE			20
+#define SBUILD_ID_SIZE	(BUILD_ID_SIZE * 2 + 1)
+
 extern const char *input_name;
 extern bool perf_host, perf_guest;
 extern const char perf_version_string[];
