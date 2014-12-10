@@ -2,6 +2,7 @@
 #define __PERF_TOOL_H
 
 #include <stdbool.h>
+#include "util/event.h"
 
 struct perf_session;
 union perf_event;
@@ -10,6 +11,7 @@ struct perf_evsel;
 struct perf_sample;
 struct perf_tool;
 struct machine;
+struct hists;
 
 typedef int (*event_sample)(struct perf_tool *tool, union perf_event *event,
 			    struct perf_sample *sample,
@@ -43,6 +45,16 @@ struct perf_tool {
 			id_index;
 	bool		ordered_events;
 	bool		ordering_requires_timestamps;
+};
+
+struct perf_tool_mt {
+	struct perf_tool	tool;
+	struct events_stats	stats;
+	struct hists		*hists;
+	struct perf_session	*session;
+	int			idx;
+
+	void			*priv;
 };
 
 #endif /* __PERF_TOOL_H */
