@@ -1586,6 +1586,7 @@ err:
 
 	goto out;
 }
+
 bool perf_session__has_traces(struct perf_session *session, const char *msg)
 {
 	struct perf_evsel *evsel;
