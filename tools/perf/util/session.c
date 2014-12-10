@@ -1308,14 +1308,14 @@ fetch_mmaped_event(struct perf_session *session,
 static int __perf_session__process_events(struct perf_session *session,
 					  struct events_stats *stats, int fd,
 					  u64 data_offset, u64 data_size,
-					  u64 file_size, struct perf_tool *tool)
+					  u64 file_size, struct perf_tool *tool,
+					  struct ui_progress *prog)
 {
 	u64 head, page_offset, file_offset, file_pos, size;
 	int err, mmap_prot, mmap_flags, map_idx = 0;
 	size_t	mmap_size;
 	char *buf, *mmaps[NUM_MMAPS];
 	union perf_event *event;
-	struct ui_progress prog;
 	s64 skip;
 
 	perf_tool__fill_defaults(tool);
@@ -1326,8 +1326,6 @@ static int __perf_session__process_events(struct perf_session *session,
 
 	if (data_size && (data_offset + data_size < file_size))
 		file_size = data_offset + data_size;
-
-	ui_progress__init(&prog, file_size, "Processing events...");
 
 	mmap_size = MMAP_SIZE;
 	if (mmap_size > file_size) {
@@ -1394,7 +1392,7 @@ more:
 	head += size;
 	file_pos += size;
 
-	ui_progress__update(&prog, size);
+	ui_progress__update(prog, size);
 
 	if (session_done())
 		goto out;
@@ -1406,7 +1404,6 @@ out:
 	/* do the final flush for ordered samples */
 	err = ordered_events__flush(session, tool, OE_FLUSH__FINAL);
 out_err:
-	ui_progress__finish();
 	ordered_events__free(&session->ordered_events);
 	session->one_mmap = false;
 	return err;
@@ -1415,10 +1412,13 @@ out_err:
 static int __perf_session__process_indexed_events(struct perf_session *session,
 						  struct perf_tool *tool)
 {
+	struct ui_progress prog;
 	struct perf_data_file *file = session->file;
 	u64 size = perf_data_file__size(file);
 	struct events_stats *stats = &session->evlist->stats;
 	int err = 0, i;
+
+	ui_progress__init(&prog, size, "Processing events...");
 
 	for (i = 0; i < (int)session->header.nr_index; i++) {
 		struct perf_file_section *index = &session->header.index[i];
@@ -1437,18 +1437,21 @@ static int __perf_session__process_indexed_events(struct perf_session *session,
 		err = __perf_session__process_events(session, stats,
 						     perf_data_file__fd(file),
 						     index->offset, index->size,
-						     size, tool);
+						     size, tool, &prog);
 		if (err < 0)
 			break;
 	}
 
+	ui_progress__finish();
 	perf_tool__warn_about_errors(tool, stats);
+
 	return err;
 }
 
 int perf_session__process_events(struct perf_session *session,
 				 struct perf_tool *tool)
 {
+	struct ui_progress prog;
 	struct perf_data_file *file = session->file;
 	u64 size = perf_data_file__size(file);
 	struct events_stats *stats = &session->evlist->stats;
@@ -1462,15 +1465,41 @@ int perf_session__process_events(struct perf_session *session,
 	if (perf_session__has_index(session))
 		return __perf_session__process_indexed_events(session, tool);
 
+	ui_progress__init(&prog, size, "Processing events...");
+
 	err = __perf_session__process_events(session, stats,
 					     perf_data_file__fd(file),
 					     session->header.data_offset,
 					     session->header.data_size,
-					     size, tool);
-
+					     size, tool, &prog);
+	ui_progress__finish();
 	perf_tool__warn_about_errors(tool, stats);
+
 	return err;
 }
+
+struct ui_progress_ops *orig_progress__ops;
+
+static void mt_progress__update(struct ui_progress *p)
+{
+	struct perf_tool_mt *mt_tool = container_of(p, struct perf_tool_mt, prog);
+	struct ui_progress *gprog = mt_tool->global_prog;
+	static pthread_mutex_t prog_lock = PTHREAD_MUTEX_INITIALIZER;
+
+	pthread_mutex_lock(&prog_lock);
+
+	gprog->curr += p->step;
+	if (gprog->curr >= gprog->next) {
+		gprog->next += gprog->step;
+		orig_progress__ops->update(gprog);
+	}
+
+	pthread_mutex_unlock(&prog_lock);
+}
+
+static struct ui_progress_ops mt_progress__ops = {
+	.update = mt_progress__update,
+};
 
 static void *processing_thread_idx(void *arg)
 {
@@ -1481,10 +1510,12 @@ static void *processing_thread_idx(void *arg)
 	u64 size = session->header.index[mt_tool->idx].size;
 	u64 file_size = perf_data_file__size(session->file);
 
+	ui_progress__init(&mt_tool->prog, size, "");
+
 	pr_debug("processing samples using thread [%d]\n", mt_tool->idx);
 	if (__perf_session__process_events(session, &mt_tool->stats,
 					   fd, offset, size, file_size,
-					   &mt_tool->tool) < 0) {
+					   &mt_tool->tool, &mt_tool->prog) < 0) {
 		pr_err("processing samples failed (thread [%d])\n", mt_tool->idx);
 		return NULL;
 	}
@@ -1502,7 +1533,8 @@ int perf_session__process_events_mt(struct perf_session *session,
 	u64 nr_entries = 0;
 	struct perf_tool_mt *mt_tools = NULL;
 	struct perf_tool_mt *mt;
-	pthread_t *th_id;
+	struct ui_progress prog;
+	pthread_t *th_id = NULL;
 	int err, i, k;
 	int nr_index = session->header.nr_index;
 	u64 size = perf_data_file__size(file);
@@ -1515,13 +1547,19 @@ int perf_session__process_events_mt(struct perf_session *session,
 	if (perf_session__register_idle_thread(session) == NULL)
 		return -ENOMEM;
 
+	ui_progress__init(&prog, size, "Processing events...");
+
 	err = __perf_session__process_events(session, &evlist->stats,
 					     perf_data_file__fd(file),
 					     session->header.index[0].offset,
 					     session->header.index[0].size,
-					     size, tool);
+					     size, tool, &prog);
 	if (err)
-		return err;
+		goto out;
+
+	orig_progress__ops = ui_progress__ops;
+	ui_progress__ops = &mt_progress__ops;
+	ui_progress__ops->finish = orig_progress__ops->finish;
 
 	th_id = calloc(nr_index, sizeof(*th_id));
 	if (th_id == NULL)
@@ -1547,6 +1585,7 @@ int perf_session__process_events_mt(struct perf_session *session,
 		mt->tool.ordered_events = false;
 		mt->idx = i;
 		mt->priv = arg;
+		mt->global_prog = &prog;
 
 		pthread_create(&th_id[i], NULL, processing_thread_idx, mt);
 	}
@@ -1570,6 +1609,9 @@ int perf_session__process_events_mt(struct perf_session *session,
 		}
 	}
 
+	ui_progress__ops = orig_progress__ops;
+	ui_progress__init(&prog, nr_entries, "Merging related events...");
+
 	for (i = 1; i < nr_index; i++) {
 		mt = &mt_tools[i];
 
@@ -1579,7 +1621,7 @@ int perf_session__process_events_mt(struct perf_session *session,
 			if (perf_evsel__is_dummy_tracking(evsel))
 				continue;
 
-			hists__mt_resort(hists, &mt->hists[evsel->idx]);
+			hists__mt_resort(hists, &mt->hists[evsel->idx], &prog);
 
 			/* Non-group events are considered as leader */
 			if (symbol_conf.event_group &&
@@ -1594,6 +1636,7 @@ int perf_session__process_events_mt(struct perf_session *session,
 	}
 
 out:
+	ui_progress__finish();
 	perf_tool__warn_about_errors(tool, &evlist->stats);
 
 	if (mt_tools) {
