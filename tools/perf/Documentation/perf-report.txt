@@ -355,6 +355,11 @@ include::itrace.txt[]
 --socket-filter::
 	Only report the samples on the processor socket that match with this filter
 
+--multi-thread::
+	Parallelize sample processing using multi-thread.  It only affects when
+	the input data file has index.  Use "report.multi-thread" config variable
+	to set the default behavior of indexed data files.
+
 include::callchain-overhead-calculation.txt[]
 
 SEE ALSO

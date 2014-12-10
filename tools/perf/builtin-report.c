@@ -54,6 +54,7 @@ struct report {
 	bool			header;
 	bool			header_only;
 	bool			nonany_branch_mode;
+	bool			multi_thread;
 	int			max_stack;
 	struct perf_read_values	show_threads_values;
 	const char		*pretty_printing_style;
@@ -84,6 +85,10 @@ static int report__config(const char *var, const char *value, void *cb)
 	}
 	if (!strcmp(var, "report.queue-size")) {
 		rep->queue_size = perf_config_u64(var, value);
+		return 0;
+	}
+	if (!strcmp(var, "report.multi-thread")) {
+		rep->multi_thread = perf_config_bool(var, value);
 		return 0;
 	}
 
@@ -135,17 +140,18 @@ out:
 	return err;
 }
 
-static int process_sample_event(struct perf_tool *tool,
-				union perf_event *event,
-				struct perf_sample *sample,
-				struct perf_evsel *evsel,
-				struct machine *machine)
+static int __process_sample_event(struct perf_tool *tool __maybe_unused,
+				  union perf_event *event,
+				  struct perf_sample *sample,
+				  struct perf_evsel *evsel,
+				  struct machine *machine,
+				  struct hists *hists,
+				  struct report *rep)
 {
-	struct report *rep = container_of(tool, struct report, tool);
 	struct addr_location al;
 	struct hist_entry_iter iter = {
 		.evsel 			= evsel,
-		.hists 			= evsel__hists(evsel),
+		.hists 			= hists,
 		.sample 		= sample,
 		.hide_unresolved 	= rep->hide_unresolved,
 		.add_entry_cb 		= hist_iter__report_callback,
@@ -189,6 +195,31 @@ static int process_sample_event(struct perf_tool *tool,
 out_put:
 	addr_location__put(&al);
 	return ret;
+}
+
+static int process_sample_event(struct perf_tool *tool,
+				union perf_event *event,
+				struct perf_sample *sample,
+				struct perf_evsel *evsel,
+				struct machine *machine)
+{
+	struct report *rep = container_of(tool, struct report, tool);
+
+	return __process_sample_event(tool, event, sample, evsel, machine,
+				      evsel__hists(evsel), rep);
+}
+
+static int process_sample_event_mt(struct perf_tool *tool,
+				   union perf_event *event,
+				   struct perf_sample *sample,
+				   struct perf_evsel *evsel,
+				   struct machine *machine)
+{
+	struct perf_tool_mt *mt = container_of(tool, struct perf_tool_mt, tool);
+	struct report *rep = mt->priv;
+
+	return __process_sample_event(tool, event, sample, evsel, machine,
+				      &mt->hists[evsel->idx], rep);
 }
 
 static int process_read_event(struct perf_tool *tool,
@@ -529,7 +560,12 @@ static int __cmd_report(struct report *rep)
 	if (ret)
 		return ret;
 
-	ret = perf_session__process_events(session);
+	if (rep->multi_thread) {
+		rep->tool.sample = process_sample_event_mt;
+		ret = perf_session__process_events_mt(session, rep);
+	} else {
+		ret = perf_session__process_events(session);
+	}
 	if (ret)
 		return ret;
 
@@ -552,7 +588,12 @@ static int __cmd_report(struct report *rep)
 		}
 	}
 
-	report__collapse_hists(rep);
+	/*
+	 * For multi-thread report, it already calls hists__mt_resort()
+	 * so no need to collapse here.
+	 */
+	if (!rep->multi_thread)
+		report__collapse_hists(rep);
 
 	if (session_done())
 		return 0;
@@ -778,6 +819,8 @@ int cmd_report(int argc, const char **argv, const char *prefix __maybe_unused)
 		    "Show callgraph from reference event"),
 	OPT_INTEGER(0, "socket-filter", &report.socket_filter,
 		    "only show processor socket that match with this filter"),
+	OPT_BOOLEAN(0, "multi-thread", &report.multi_thread,
+		    "Speed up sample processing using multi-thead"),
 	OPT_END()
 	};
 	struct perf_data_file file = {
@@ -842,6 +885,11 @@ repeat:
 	}
 
 	session->itrace_synth_opts = &itrace_synth_opts;
+
+	if (report.multi_thread && !perf_has_index) {
+		pr_debug("fallback to single thread for normal data file.\n");
+		report.multi_thread = false;
+	}
 
 	report.session = session;
 
