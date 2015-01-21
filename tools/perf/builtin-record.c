@@ -312,6 +312,8 @@ static void record__init_features(struct record *rec)
 
 	if (!rec->opts.branch_stack)
 		perf_header__clear_feat(&session->header, HEADER_BRANCH_STACK);
+
+	perf_header__clear_feat(&session->header, HEADER_DATA_INDEX);
 }
 
 static volatile int workload_exec_errno;

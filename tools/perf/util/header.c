@@ -869,6 +869,24 @@ static int write_branch_stack(int fd __maybe_unused,
 	return 0;
 }
 
+static int write_data_index(int fd, struct perf_header *h,
+			    struct perf_evlist *evlist __maybe_unused)
+{
+	int ret;
+	unsigned i;
+
+	ret = do_write(fd, &h->nr_index, sizeof(h->nr_index));
+	if (ret < 0)
+		return ret;
+
+	for (i = 0; i < h->nr_index; i++) {
+		ret = do_write(fd, &h->index[i], sizeof(*h->index));
+		if (ret < 0)
+			return ret;
+	}
+	return 0;
+}
+
 static void print_hostname(struct perf_header *ph, int fd __maybe_unused,
 			   FILE *fp)
 {
@@ -1223,6 +1241,12 @@ static void print_group_desc(struct perf_header *ph, int fd __maybe_unused,
 				fprintf(fp, "}\n");
 		}
 	}
+}
+
+static void print_data_index(struct perf_header *ph __maybe_unused,
+			     int fd __maybe_unused, FILE *fp)
+{
+	fprintf(fp, "# contains data index for parallel processing\n");
 }
 
 static int __event_process_build_id(struct build_id_event *bev,
@@ -1833,6 +1857,42 @@ out_free:
 	return ret;
 }
 
+static int process_data_index(struct perf_file_section *section __maybe_unused,
+			      struct perf_header *ph, int fd,
+			      void *data __maybe_unused)
+{
+	ssize_t ret;
+	u64 nr_index;
+	unsigned i;
+	struct perf_file_section *index;
+
+	ret = readn(fd, &nr_index, sizeof(nr_index));
+	if (ret != sizeof(nr_index))
+		return -1;
+
+	if (ph->needs_swap)
+		nr_index = bswap_64(nr_index);
+
+	index = calloc(nr_index, sizeof(*index));
+	if (index == NULL)
+		return -1;
+
+	for (i = 0; i < nr_index; i++) {
+		ret = readn(fd, &index[i], sizeof(*index));
+		if (ret != sizeof(*index))
+			return ret;
+
+		if (ph->needs_swap) {
+			index[i].offset = bswap_64(index[i].offset);
+			index[i].size   = bswap_64(index[i].size);
+		}
+	}
+
+	ph->index = index;
+	ph->nr_index = nr_index;
+	return 0;
+}
+
 struct feature_ops {
 	int (*write)(int fd, struct perf_header *h, struct perf_evlist *evlist);
 	void (*print)(struct perf_header *h, int fd, FILE *fp);
@@ -1873,6 +1933,7 @@ static const struct feature_ops feat_ops[HEADER_LAST_FEATURE] = {
 	FEAT_OPA(HEADER_BRANCH_STACK,	branch_stack),
 	FEAT_OPP(HEADER_PMU_MAPPINGS,	pmu_mappings),
 	FEAT_OPP(HEADER_GROUP_DESC,	group_desc),
+	FEAT_OPP(HEADER_DATA_INDEX,	data_index),
 };
 
 struct header_print_data {
