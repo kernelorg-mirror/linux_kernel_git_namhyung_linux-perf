@@ -30,6 +30,7 @@ enum {
 	HEADER_BRANCH_STACK,
 	HEADER_PMU_MAPPINGS,
 	HEADER_GROUP_DESC,
+	HEADER_DATA_INDEX,
 	HEADER_LAST_FEATURE,
 	HEADER_FEAT_BITS	= 256,
 };
@@ -94,6 +95,8 @@ struct perf_header {
 	bool				needs_swap;
 	u64				data_offset;
 	u64				data_size;
+	struct perf_file_section	*index;
+	u64				nr_index;
 	u64				feat_offset;
 	DECLARE_BITMAP(adds_features, HEADER_FEAT_BITS);
 	struct perf_session_env 	env;
