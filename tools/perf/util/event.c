@@ -96,10 +96,10 @@ static pid_t perf_event__get_comm_tgid(pid_t pid, char *comm, size_t len)
 	return tgid;
 }
 
-static pid_t perf_event__synthesize_comm(struct perf_tool *tool,
-					 union perf_event *event, pid_t pid,
-					 perf_event__handler_t process,
-					 struct machine *machine)
+pid_t perf_event__synthesize_comm(struct perf_tool *tool,
+				  union perf_event *event, pid_t pid,
+				  perf_event__handler_t process,
+				  struct machine *machine)
 {
 	size_t size;
 	pid_t tgid;

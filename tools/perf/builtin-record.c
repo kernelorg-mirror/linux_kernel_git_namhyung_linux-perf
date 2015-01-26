@@ -607,8 +607,24 @@ static int __cmd_record(struct record *rec, int argc, const char **argv)
 	/*
 	 * Let the child rip
 	 */
-	if (forks)
+	if (forks) {
+		union perf_event *comm_event;
+
+		comm_event = malloc(sizeof(*comm_event) + machine->id_hdr_size);
+		if (comm_event == NULL)
+			goto out_child;
+
+		err = perf_event__synthesize_comm(tool, comm_event,
+						  rec->evlist->threads->map[0],
+						  process_synthesized_event,
+						  machine);
+		free(comm_event);
+
+		if (err < 0)
+			goto out_child;
+
 		perf_evlist__start_workload(rec->evlist);
+	}
 
 	if (opts->initial_delay) {
 		usleep(opts->initial_delay * 1000);
