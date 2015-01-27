@@ -70,7 +70,8 @@ struct scripting_ops {
 			       struct perf_sample *sample,
 			       struct perf_evsel *evsel,
 			       struct thread *thread,
-				   struct addr_location *al);
+			       struct addr_location *al,
+			       struct perf_session *session);
 	int (*generate_script) (struct pevent *pevent, const char *outfile);
 };
 

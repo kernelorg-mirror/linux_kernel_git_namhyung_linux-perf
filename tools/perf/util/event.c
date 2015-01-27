@@ -904,7 +904,8 @@ bool sample_addr_correlates_sym(struct perf_event_attr *attr)
 void perf_event__preprocess_sample_addr(union perf_event *event,
 					struct perf_sample *sample,
 					struct thread *thread,
-					struct addr_location *al)
+					struct addr_location *al,
+					struct perf_session *session __maybe_unused)
 {
 	u8 cpumode = event->header.misc & PERF_RECORD_MISC_CPUMODE_MASK;
 

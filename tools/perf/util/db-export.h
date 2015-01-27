@@ -29,6 +29,7 @@ struct addr_location;
 struct call_return_processor;
 struct call_path;
 struct call_return;
+struct perf_session;
 
 struct export_sample {
 	union perf_event	*event;
@@ -97,7 +98,8 @@ int db_export__branch_type(struct db_export *dbe, u32 branch_type,
 			   const char *name);
 int db_export__sample(struct db_export *dbe, union perf_event *event,
 		      struct perf_sample *sample, struct perf_evsel *evsel,
-		      struct thread *thread, struct addr_location *al);
+		      struct thread *thread, struct addr_location *al,
+		      struct perf_session *session);
 
 int db_export__branch_types(struct db_export *dbe);
 

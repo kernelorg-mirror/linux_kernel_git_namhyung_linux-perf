@@ -282,7 +282,8 @@ int db_export__branch_type(struct db_export *dbe, u32 branch_type,
 
 int db_export__sample(struct db_export *dbe, union perf_event *event,
 		      struct perf_sample *sample, struct perf_evsel *evsel,
-		      struct thread *thread, struct addr_location *al)
+		      struct thread *thread, struct addr_location *al,
+		      struct perf_session *session)
 {
 	struct export_sample es = {
 		.event = event,
@@ -328,7 +329,8 @@ int db_export__sample(struct db_export *dbe, union perf_event *event,
 	    sample_addr_correlates_sym(&evsel->attr)) {
 		struct addr_location addr_al;
 
-		perf_event__preprocess_sample_addr(event, sample, thread, &addr_al);
+		perf_event__preprocess_sample_addr(event, sample, thread,
+						   &addr_al, session);
 		err = db_ids_from_al(dbe, &addr_al, &es.addr_dso_db_id,
 				     &es.addr_sym_db_id, &es.addr_offset);
 		if (err)
