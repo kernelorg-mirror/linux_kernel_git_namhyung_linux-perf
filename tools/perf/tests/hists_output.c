@@ -67,7 +67,7 @@ static int add_hist_entries(struct hists *hists, struct machine *machine)
 		sample.ip = fake_samples[i].ip;
 
 		if (perf_event__preprocess_sample(&event, machine, &al,
-						  &sample) < 0)
+						  &sample, NULL) < 0)
 			goto out;
 
 		if (hist_entry_iter__add(&iter, &al, evsel, &sample,

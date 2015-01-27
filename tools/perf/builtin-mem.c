@@ -12,6 +12,7 @@
 
 struct perf_mem {
 	struct perf_tool	tool;
+	struct perf_session	*session;
 	char const		*input_name;
 	bool			hide_unresolved;
 	bool			dump_raw;
@@ -66,7 +67,8 @@ dump_raw_samples(struct perf_tool *tool,
 	struct addr_location al;
 	const char *fmt;
 
-	if (perf_event__preprocess_sample(event, machine, &al, sample) < 0) {
+	if (perf_event__preprocess_sample(event, machine, &al, sample,
+					  mem->session) < 0) {
 		fprintf(stderr, "problem processing %d event, skipping it.\n",
 				event->header.type);
 		return -1;
@@ -128,6 +130,8 @@ static int report_raw_events(struct perf_mem *mem)
 
 	if (session == NULL)
 		return -1;
+
+	mem->session = session;
 
 	if (mem->cpu_list) {
 		ret = perf_session__cpu_bitmap(session, mem->cpu_list,
