@@ -42,6 +42,7 @@ struct diff_hpp_fmt {
 };
 
 struct data__file {
+	struct perf_tool	tool;
 	struct perf_session	*session;
 	struct perf_data_file	file;
 	int			 idx;
@@ -320,16 +321,18 @@ static int hists__add_entry(struct hists *hists,
 	return -ENOMEM;
 }
 
-static int diff__process_sample_event(struct perf_tool *tool __maybe_unused,
+static int diff__process_sample_event(struct perf_tool *tool,
 				      union perf_event *event,
 				      struct perf_sample *sample,
 				      struct perf_evsel *evsel,
 				      struct machine *machine)
 {
 	struct addr_location al;
+	struct data__file *d = container_of(tool, struct data__file, tool);
 	struct hists *hists = evsel__hists(evsel);
 
-	if (perf_event__preprocess_sample(event, machine, &al, sample) < 0) {
+	if (perf_event__preprocess_sample(event, machine, &al, sample,
+					  d->session) < 0) {
 		pr_warning("problem processing %d event, skipping it.\n",
 			   event->header.type);
 		return -1;
@@ -740,14 +743,16 @@ static int __cmd_diff(void)
 	int ret = -EINVAL, i;
 
 	data__for_each_file(i, d) {
-		d->session = perf_session__new(&d->file, false, &tool);
+		memcpy(&d->tool, &tool, sizeof(tool));
+
+		d->session = perf_session__new(&d->file, false, &d->tool);
 		if (!d->session) {
 			pr_err("Failed to open %s\n", d->file.path);
 			ret = -1;
 			goto out_delete;
 		}
 
-		ret = perf_session__process_events(d->session, &tool);
+		ret = perf_session__process_events(d->session, &d->tool);
 		if (ret) {
 			pr_err("Failed to process %s\n", d->file.path);
 			goto out_delete;

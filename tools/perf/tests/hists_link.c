@@ -86,7 +86,7 @@ static int add_hist_entries(struct perf_evlist *evlist, struct machine *machine)
 			sample.tid = fake_common_samples[k].pid;
 			sample.ip = fake_common_samples[k].ip;
 			if (perf_event__preprocess_sample(&event, machine, &al,
-							  &sample) < 0)
+							  &sample, NULL) < 0)
 				goto out;
 
 			he = __hists__add_entry(hists, &al, NULL,
@@ -110,7 +110,7 @@ static int add_hist_entries(struct perf_evlist *evlist, struct machine *machine)
 			sample.tid = fake_samples[i][k].pid;
 			sample.ip = fake_samples[i][k].ip;
 			if (perf_event__preprocess_sample(&event, machine, &al,
-							  &sample) < 0)
+							  &sample, NULL) < 0)
 				goto out;
 
 			he = __hists__add_entry(hists, &al, NULL,

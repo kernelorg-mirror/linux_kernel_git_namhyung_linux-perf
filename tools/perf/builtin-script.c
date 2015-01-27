@@ -542,13 +542,21 @@ static int cleanup_scripting(void)
 	return scripting_ops->stop_script();
 }
 
-static int process_sample_event(struct perf_tool *tool __maybe_unused,
+struct perf_script {
+	struct perf_tool	tool;
+	struct perf_session	*session;
+	bool			show_task_events;
+	bool			show_mmap_events;
+};
+
+static int process_sample_event(struct perf_tool *tool,
 				union perf_event *event,
 				struct perf_sample *sample,
 				struct perf_evsel *evsel,
 				struct machine *machine)
 {
 	struct addr_location al;
+	struct perf_script *script = container_of(tool, struct perf_script, tool);
 	struct thread *thread = machine__findnew_thread(machine, sample->pid,
 							sample->tid);
 
@@ -569,7 +577,8 @@ static int process_sample_event(struct perf_tool *tool __maybe_unused,
 		return 0;
 	}
 
-	if (perf_event__preprocess_sample(event, machine, &al, sample) < 0) {
+	if (perf_event__preprocess_sample(event, machine, &al, sample,
+					  script->session) < 0) {
 		pr_err("problem processing %d event, skipping it.\n",
 		       event->header.type);
 		return -1;
@@ -585,13 +594,6 @@ static int process_sample_event(struct perf_tool *tool __maybe_unused,
 
 	return 0;
 }
-
-struct perf_script {
-	struct perf_tool	tool;
-	struct perf_session	*session;
-	bool			show_task_events;
-	bool			show_mmap_events;
-};
 
 static int process_attr(struct perf_tool *tool, union perf_event *event,
 			struct perf_evlist **pevlist)

@@ -353,11 +353,13 @@ int perf_event__process(struct perf_tool *tool,
 			struct machine *machine);
 
 struct addr_location;
+struct perf_session;
 
 int perf_event__preprocess_sample(const union perf_event *event,
 				  struct machine *machine,
 				  struct addr_location *al,
-				  struct perf_sample *sample);
+				  struct perf_sample *sample,
+				  struct perf_session *session);
 
 struct thread;
 

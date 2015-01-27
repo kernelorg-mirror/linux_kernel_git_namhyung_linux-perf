@@ -142,7 +142,8 @@ static int process_sample_event(struct perf_tool *tool,
 	};
 	int ret;
 
-	if (perf_event__preprocess_sample(event, machine, &al, sample) < 0) {
+	if (perf_event__preprocess_sample(event, machine, &al, sample,
+					  rep->session) < 0) {
 		pr_debug("problem processing %d event, skipping it.\n",
 			 event->header.type);
 		return -1;

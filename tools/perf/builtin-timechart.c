@@ -48,6 +48,7 @@ struct wake_event;
 
 struct timechart {
 	struct perf_tool	tool;
+	struct perf_session	*session;
 	struct per_pid		*all_data;
 	struct power_event	*power_events;
 	struct wake_event	*wake_events;
@@ -469,7 +470,8 @@ static void sched_switch(struct timechart *tchart, int cpu, u64 timestamp,
 
 static const char *cat_backtrace(union perf_event *event,
 				 struct perf_sample *sample,
-				 struct machine *machine)
+				 struct machine *machine,
+				 struct perf_session *session)
 {
 	struct addr_location al;
 	unsigned int i;
@@ -488,7 +490,8 @@ static const char *cat_backtrace(union perf_event *event,
 	if (!chain)
 		goto exit;
 
-	if (perf_event__preprocess_sample(event, machine, &al, sample) < 0) {
+	if (perf_event__preprocess_sample(event, machine, &al, sample,
+					  session) < 0) {
 		fprintf(stderr, "problem processing %d event, skipping it.\n",
 			event->header.type);
 		goto exit;
@@ -567,7 +570,7 @@ static int process_sample_event(struct perf_tool *tool,
 	if (evsel->handler != NULL) {
 		tracepoint_handler f = evsel->handler;
 		return f(tchart, evsel, sample,
-			 cat_backtrace(event, sample, machine));
+			 cat_backtrace(event, sample, machine, tchart->session));
 	}
 
 	return 0;
@@ -1623,6 +1626,7 @@ static int __cmd_timechart(struct timechart *tchart, const char *output_name)
 		goto out_delete;
 	}
 
+	tchart->session = session;
 	ret = perf_session__process_events(session, &tchart->tool);
 	if (ret)
 		goto out_delete;
