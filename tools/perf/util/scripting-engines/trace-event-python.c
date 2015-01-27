@@ -839,7 +839,8 @@ static void python_process_event(union perf_event *event,
 				 struct perf_sample *sample,
 				 struct perf_evsel *evsel,
 				 struct thread *thread,
-				 struct addr_location *al)
+				 struct addr_location *al,
+				 struct perf_session *session)
 {
 	struct tables *tables = &tables_global;
 
@@ -851,7 +852,7 @@ static void python_process_event(union perf_event *event,
 	default:
 		if (tables->db_export_mode)
 			db_export__sample(&tables->dbe, event, sample, evsel,
-					  thread, al);
+					  thread, al, session);
 		else
 			python_process_general_event(sample, evsel, thread, al);
 	}

@@ -377,9 +377,10 @@ static void print_sample_start(struct perf_sample *sample,
 }
 
 static void print_sample_addr(union perf_event *event,
-			  struct perf_sample *sample,
-			  struct thread *thread,
-			  struct perf_event_attr *attr)
+			      struct perf_sample *sample,
+			      struct thread *thread,
+			      struct perf_event_attr *attr,
+			      struct perf_session *session)
 {
 	struct addr_location al;
 
@@ -388,7 +389,7 @@ static void print_sample_addr(union perf_event *event,
 	if (!sample_addr_correlates_sym(attr))
 		return;
 
-	perf_event__preprocess_sample_addr(event, sample, thread, &al);
+	perf_event__preprocess_sample_addr(event, sample, thread, &al, session);
 
 	if (PRINT_FIELD(SYM)) {
 		printf(" ");
@@ -409,7 +410,8 @@ static void print_sample_bts(union perf_event *event,
 			     struct perf_sample *sample,
 			     struct perf_evsel *evsel,
 			     struct thread *thread,
-			     struct addr_location *al)
+			     struct addr_location *al,
+			     struct perf_session *session)
 {
 	struct perf_event_attr *attr = &evsel->attr;
 	bool print_srcline_last = false;
@@ -436,7 +438,7 @@ static void print_sample_bts(union perf_event *event,
 	    ((evsel->attr.sample_type & PERF_SAMPLE_ADDR) &&
 	     !output[attr->type].user_set)) {
 		printf(" => ");
-		print_sample_addr(event, sample, thread, attr);
+		print_sample_addr(event, sample, thread, attr, session);
 	}
 
 	if (print_srcline_last)
@@ -447,7 +449,7 @@ static void print_sample_bts(union perf_event *event,
 
 static void process_event(union perf_event *event, struct perf_sample *sample,
 			  struct perf_evsel *evsel, struct thread *thread,
-			  struct addr_location *al)
+			  struct addr_location *al, struct perf_session *session)
 {
 	struct perf_event_attr *attr = &evsel->attr;
 
@@ -465,7 +467,7 @@ static void process_event(union perf_event *event, struct perf_sample *sample,
 	}
 
 	if (is_bts_event(attr)) {
-		print_sample_bts(event, sample, evsel, thread, al);
+		print_sample_bts(event, sample, evsel, thread, al, session);
 		return;
 	}
 
@@ -473,7 +475,7 @@ static void process_event(union perf_event *event, struct perf_sample *sample,
 		event_format__print(evsel->tp_format, sample->cpu,
 				    sample->raw_data, sample->raw_size);
 	if (PRINT_FIELD(ADDR))
-		print_sample_addr(event, sample, thread, attr);
+		print_sample_addr(event, sample, thread, attr, session);
 
 	if (PRINT_FIELD(IP)) {
 		if (!symbol_conf.use_callchain)
@@ -590,7 +592,8 @@ static int process_sample_event(struct perf_tool *tool,
 	if (cpu_list && !test_bit(sample->cpu, cpu_bitmap))
 		return 0;
 
-	scripting_ops->process_event(event, sample, evsel, thread, &al);
+	scripting_ops->process_event(event, sample, evsel, thread, &al,
+				     script->session);
 
 	return 0;
 }
