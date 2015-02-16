@@ -88,6 +88,7 @@ struct hist_entry_iter {
 
 	struct perf_evsel *evsel;
 	struct perf_sample *sample;
+	struct perf_session *session;
 	struct hist_entry *he;
 	struct symbol *parent;
 	void *priv;

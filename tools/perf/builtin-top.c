@@ -776,6 +776,7 @@ static void perf_event__process_sample(struct perf_tool *tool,
 		struct hist_entry_iter iter = {
 			.evsel		= evsel,
 			.sample 	= sample,
+			.session 	= top->session,
 			.add_entry_cb 	= hist_iter__top_callback,
 		};
 
