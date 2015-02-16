@@ -67,6 +67,7 @@ struct map_groups {
 	u64		 timestamp;
 	int		 refcnt;
 	struct list_head list;
+	void		 *priv;
 };
 
 struct map_groups *map_groups__new(struct machine *machine);

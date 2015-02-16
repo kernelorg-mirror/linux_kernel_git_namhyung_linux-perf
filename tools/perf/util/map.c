@@ -14,6 +14,7 @@
 #include "util.h"
 #include "debug.h"
 #include "machine.h"
+#include "unwind.h"
 #include <linux/string.h>
 
 const char *map_type__name[MAP__NR_TYPES] = {
@@ -431,6 +432,8 @@ void map_groups__init(struct map_groups *mg, struct machine *machine)
 	mg->refcnt = 1;
 	mg->timestamp = 0;
 	INIT_LIST_HEAD(&mg->list);
+
+	unwind__prepare_access(mg);
 }
 
 static void maps__delete(struct rb_root *maps)
@@ -464,6 +467,8 @@ void map_groups__exit(struct map_groups *mg)
 		maps__delete(&mg->maps[i]);
 		maps__delete_removed(&mg->removed_maps[i]);
 	}
+
+	unwind__finish_access(mg);
 }
 
 bool map_groups__empty(struct map_groups *mg)
