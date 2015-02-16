@@ -1550,7 +1550,7 @@ struct perf_evsel *perf_session__find_first_evtype(struct perf_session *session,
 }
 
 void perf_evsel__print_ip(struct perf_evsel *evsel, struct perf_sample *sample,
-			  struct addr_location *al,
+			  struct perf_session *session, struct addr_location *al,
 			  unsigned int print_opts, unsigned int stack_depth)
 {
 	struct callchain_cursor_node *node;
@@ -1565,8 +1565,8 @@ void perf_evsel__print_ip(struct perf_evsel *evsel, struct perf_sample *sample,
 	if (symbol_conf.use_callchain && sample->callchain) {
 		struct addr_location node_al;
 
-		if (thread__resolve_callchain(al->thread, evsel,
-					      sample, NULL, NULL,
+		if (thread__resolve_callchain(al->thread, evsel, sample,
+					      session, NULL, NULL,
 					      PERF_MAX_STACK_DEPTH) != 0) {
 			if (verbose)
 				error("Failed to resolve callchain. Skipping\n");

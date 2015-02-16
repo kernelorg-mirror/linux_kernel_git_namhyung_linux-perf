@@ -75,7 +75,7 @@ static int unwind_thread(struct thread *thread)
 		goto out;
 	}
 
-	err = unwind__get_entries(unwind_entry, &cnt, thread,
+	err = unwind__get_entries(unwind_entry, &cnt, thread, NULL,
 				  &sample, MAX_STACK);
 	if (err)
 		pr_debug("unwind failed\n");

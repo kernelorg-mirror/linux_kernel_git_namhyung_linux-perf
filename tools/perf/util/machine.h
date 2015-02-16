@@ -129,6 +129,7 @@ struct mem_info *sample__resolve_mem(struct perf_sample *sample,
 int thread__resolve_callchain(struct thread *thread,
 			      struct perf_evsel *evsel,
 			      struct perf_sample *sample,
+			      struct perf_session *session,
 			      struct symbol **parent,
 			      struct addr_location *root_al,
 			      int max_stack);

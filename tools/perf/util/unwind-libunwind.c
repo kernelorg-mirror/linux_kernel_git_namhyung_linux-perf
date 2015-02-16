@@ -86,6 +86,7 @@ UNW_OBJ(dwarf_find_debug_frame) (int found, unw_dyn_info_t *di_debug,
 
 struct unwind_info {
 	struct perf_sample	*sample;
+	struct perf_session	*session;
 	struct machine		*machine;
 	struct thread		*thread;
 };
@@ -315,8 +316,8 @@ static struct map *find_map(unw_word_t ip, struct unwind_info *ui)
 {
 	struct addr_location al;
 
-	thread__find_addr_map(ui->thread, PERF_RECORD_MISC_USER,
-			      MAP__FUNCTION, ip, &al);
+	session__find_addr_map(ui->session, ui->thread, PERF_RECORD_MISC_USER,
+			       MAP__FUNCTION, ip, &al, ui->sample->time);
 	return al.map;
 }
 
@@ -406,20 +407,19 @@ get_proc_name(unw_addr_space_t __maybe_unused as,
 static int access_dso_mem(struct unwind_info *ui, unw_word_t addr,
 			  unw_word_t *data)
 {
-	struct addr_location al;
+	struct map *map;
 	ssize_t size;
 
-	thread__find_addr_map(ui->thread, PERF_RECORD_MISC_USER,
-			      MAP__FUNCTION, addr, &al);
-	if (!al.map) {
+	map = find_map(addr, ui);
+	if (!map) {
 		pr_debug("unwind: no map for %lx\n", (unsigned long)addr);
 		return -1;
 	}
 
-	if (!al.map->dso)
+	if (!map->dso)
 		return -1;
 
-	size = dso__data_read_addr(al.map->dso, al.map, ui->machine,
+	size = dso__data_read_addr(map->dso, map, ui->machine,
 				   addr, (u8 *) data, sizeof(*data));
 
 	return !(size == sizeof(*data));
@@ -511,14 +511,14 @@ static void put_unwind_info(unw_addr_space_t __maybe_unused as,
 	pr_debug("unwind: put_unwind_info called\n");
 }
 
-static int entry(u64 ip, struct thread *thread,
-		 unwind_entry_cb_t cb, void *arg)
+static int entry(u64 ip, struct thread *thread, struct perf_session *session,
+		 u64 timestamp, unwind_entry_cb_t cb, void *arg)
 {
 	struct unwind_entry e;
 	struct addr_location al;
 
-	thread__find_addr_location(thread, PERF_RECORD_MISC_USER,
-				   MAP__FUNCTION, ip, &al);
+	session__find_addr_location(session, thread, PERF_RECORD_MISC_USER,
+				    MAP__FUNCTION, ip, &al, timestamp);
 
 	e.ip = ip;
 	e.map = al.map;
@@ -620,20 +620,22 @@ static int get_entries(struct unwind_info *ui, unwind_entry_cb_t cb,
 		unw_word_t ip;
 
 		unw_get_reg(&c, UNW_REG_IP, &ip);
-		ret = ip ? entry(ip, ui->thread, cb, arg) : 0;
+		ret = ip ? entry(ip, ui->thread, ui->session,
+				 ui->sample->time, cb, arg) : 0;
 	}
 
 	return ret;
 }
 
 int unwind__get_entries(unwind_entry_cb_t cb, void *arg,
-			struct thread *thread,
+			struct thread *thread, struct perf_session *session,
 			struct perf_sample *data, int max_stack)
 {
 	u64 ip;
 	struct unwind_info ui = {
 		.sample       = data,
 		.thread       = thread,
+		.session      = session,
 		.machine      = thread->mg->machine,
 	};
 	int ret;
@@ -645,7 +647,7 @@ int unwind__get_entries(unwind_entry_cb_t cb, void *arg,
 	if (ret)
 		return ret;
 
-	ret = entry(ip, thread, cb, arg);
+	ret = entry(ip, thread, session, data->time, cb, arg);
 	if (ret)
 		return -ENOMEM;
 

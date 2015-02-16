@@ -1540,10 +1540,11 @@ struct mem_info *sample__resolve_mem(struct perf_sample *sample,
 }
 
 static int add_callchain_ip(struct thread *thread,
+			    struct perf_session *session,
 			    struct symbol **parent,
 			    struct addr_location *root_al,
 			    bool branch_history,
-			    u64 ip)
+			    u64 ip, u64 timestamp)
 {
 	struct addr_location al;
 
@@ -1551,8 +1552,9 @@ static int add_callchain_ip(struct thread *thread,
 	al.sym = NULL;
 
 	if (branch_history)
-		thread__find_cpumode_addr_location(thread, MAP__FUNCTION,
-						   ip, &al);
+		session__find_cpumode_addr_location(session, thread,
+						    MAP__FUNCTION, ip, &al,
+						    timestamp);
 	else {
 		u8 cpumode = PERF_RECORD_MISC_USER;
 
@@ -1579,8 +1581,8 @@ static int add_callchain_ip(struct thread *thread,
 			}
 			return 0;
 		}
-		thread__find_addr_location(thread, cpumode, MAP__FUNCTION,
-				   ip, &al);
+		session__find_addr_location(session,thread, cpumode,
+					    MAP__FUNCTION, ip, &al, timestamp);
 	}
 
 	if (al.sym != NULL) {
@@ -1670,6 +1672,7 @@ static int remove_loops(struct branch_entry *l, int nr)
  */
 static int resolve_lbr_callchain_sample(struct thread *thread,
 					struct perf_sample *sample,
+					struct perf_session *session,
 					struct symbol **parent,
 					struct addr_location *root_al,
 					int max_stack)
@@ -1722,7 +1725,8 @@ static int resolve_lbr_callchain_sample(struct thread *thread,
 					ip = lbr_stack->entries[0].to;
 			}
 
-			err = add_callchain_ip(thread, parent, root_al, false, ip);
+			err = add_callchain_ip(thread, session, parent, root_al,
+					       false, ip, sample->time);
 			if (err)
 				return (err < 0) ? err : 0;
 		}
@@ -1735,6 +1739,7 @@ static int resolve_lbr_callchain_sample(struct thread *thread,
 static int thread__resolve_callchain_sample(struct thread *thread,
 					    struct perf_evsel *evsel,
 					    struct perf_sample *sample,
+					    struct perf_session *session,
 					    struct symbol **parent,
 					    struct addr_location *root_al,
 					    int max_stack)
@@ -1742,6 +1747,7 @@ static int thread__resolve_callchain_sample(struct thread *thread,
 	struct branch_stack *branch = sample->branch_stack;
 	struct ip_callchain *chain = sample->callchain;
 	int chain_nr = min(max_stack, (int)chain->nr);
+	u64 timestamp = sample->time;
 	int i, j, err;
 	int skip_idx = -1;
 	int first_call = 0;
@@ -1749,8 +1755,8 @@ static int thread__resolve_callchain_sample(struct thread *thread,
 	callchain_cursor_reset(&callchain_cursor);
 
 	if (has_branch_callstack(evsel)) {
-		err = resolve_lbr_callchain_sample(thread, sample, parent,
-						   root_al, max_stack);
+		err = resolve_lbr_callchain_sample(thread, sample, session,
+						   parent, root_al, max_stack);
 		if (err)
 			return (err < 0) ? err : 0;
 	}
@@ -1806,11 +1812,12 @@ static int thread__resolve_callchain_sample(struct thread *thread,
 		nr = remove_loops(be, nr);
 
 		for (i = 0; i < nr; i++) {
-			err = add_callchain_ip(thread, parent, root_al,
-					       true, be[i].to);
+			err = add_callchain_ip(thread, session, parent, root_al,
+					       true, be[i].to, timestamp);
 			if (!err)
-				err = add_callchain_ip(thread, parent, root_al,
-						       true, be[i].from);
+				err = add_callchain_ip(thread, session, parent,
+						       root_al, true,
+						       be[i].from, timestamp);
 			if (err == -EINVAL)
 				break;
 			if (err)
@@ -1839,7 +1846,8 @@ check_calls:
 #endif
 		ip = chain->ips[j];
 
-		err = add_callchain_ip(thread, parent, root_al, false, ip);
+		err = add_callchain_ip(thread, session, parent, root_al, false,
+				       ip, timestamp);
 		if (err)
 			return (err < 0) ? err : 0;
 	}
@@ -1857,12 +1865,13 @@ static int unwind_entry(struct unwind_entry *entry, void *arg)
 int thread__resolve_callchain(struct thread *thread,
 			      struct perf_evsel *evsel,
 			      struct perf_sample *sample,
+			      struct perf_session *session,
 			      struct symbol **parent,
 			      struct addr_location *root_al,
 			      int max_stack)
 {
-	int ret = thread__resolve_callchain_sample(thread, evsel,
-						   sample, parent,
+	int ret = thread__resolve_callchain_sample(thread, evsel, sample,
+						   session, parent,
 						   root_al, max_stack);
 	if (ret)
 		return ret;
@@ -1878,7 +1887,7 @@ int thread__resolve_callchain(struct thread *thread,
 		return 0;
 
 	return unwind__get_entries(unwind_entry, &callchain_cursor,
-				   thread, sample, max_stack);
+				   thread, session, sample, max_stack);
 
 }
 

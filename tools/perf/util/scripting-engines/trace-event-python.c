@@ -298,9 +298,10 @@ static PyObject *get_field_numeric_entry(struct event_format *event,
 }
 
 
-static PyObject *python_process_callchain(struct perf_sample *sample,
-					 struct perf_evsel *evsel,
-					 struct addr_location *al)
+static PyObject *python_process_callchain(struct perf_session *session,
+					  struct perf_sample *sample,
+					  struct perf_evsel *evsel,
+					  struct addr_location *al)
 {
 	PyObject *pylist;
 
@@ -311,9 +312,8 @@ static PyObject *python_process_callchain(struct perf_sample *sample,
 	if (!symbol_conf.use_callchain || !sample->callchain)
 		goto exit;
 
-	if (thread__resolve_callchain(al->thread, evsel,
-				      sample, NULL, NULL,
-				      PERF_MAX_STACK_DEPTH) != 0) {
+	if (thread__resolve_callchain(al->thread, evsel, sample, session,
+				      NULL, NULL, PERF_MAX_STACK_DEPTH) != 0) {
 		pr_err("Failed to resolve callchain. Skipping\n");
 		goto exit;
 	}
@@ -374,7 +374,8 @@ exit:
 }
 
 
-static void python_process_tracepoint(struct perf_sample *sample,
+static void python_process_tracepoint(struct perf_session *session,
+				      struct perf_sample *sample,
 				      struct perf_evsel *evsel,
 				      struct thread *thread,
 				      struct addr_location *al)
@@ -424,7 +425,7 @@ static void python_process_tracepoint(struct perf_sample *sample,
 	PyTuple_SetItem(t, n++, context);
 
 	/* ip unwinding */
-	callchain = python_process_callchain(sample, evsel, al);
+	callchain = python_process_callchain(session, sample, evsel, al);
 
 	if (handler) {
 		PyTuple_SetItem(t, n++, PyInt_FromLong(cpu));
@@ -759,7 +760,8 @@ static int python_process_call_return(struct call_return *cr, void *data)
 	return db_export__call_return(dbe, cr);
 }
 
-static void python_process_general_event(struct perf_sample *sample,
+static void python_process_general_event(struct perf_session *session,
+					 struct perf_sample *sample,
 					 struct perf_evsel *evsel,
 					 struct thread *thread,
 					 struct addr_location *al)
@@ -822,7 +824,7 @@ static void python_process_general_event(struct perf_sample *sample,
 	}
 
 	/* ip unwinding */
-	callchain = python_process_callchain(sample, evsel, al);
+	callchain = python_process_callchain(session, sample, evsel, al);
 	pydict_set_item_string_decref(dict, "callchain", callchain);
 
 	PyTuple_SetItem(t, n++, dict);
@@ -846,7 +848,7 @@ static void python_process_event(union perf_event *event,
 
 	switch (evsel->attr.type) {
 	case PERF_TYPE_TRACEPOINT:
-		python_process_tracepoint(sample, evsel, thread, al);
+		python_process_tracepoint(session, sample, evsel, thread, al);
 		break;
 	/* Reserve for future process_hw/sw/raw APIs */
 	default:
@@ -854,7 +856,8 @@ static void python_process_event(union perf_event *event,
 			db_export__sample(&tables->dbe, event, sample, evsel,
 					  thread, al, session);
 		else
-			python_process_general_event(sample, evsel, thread, al);
+			python_process_general_event(session, sample, evsel,
+						     thread, al);
 	}
 }
 

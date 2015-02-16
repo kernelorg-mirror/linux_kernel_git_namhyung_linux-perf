@@ -861,8 +861,9 @@ int hist_entry_iter__add(struct hist_entry_iter *iter, struct addr_location *al,
 {
 	int err, err2;
 
-	err = sample__resolve_callchain(iter->sample, &iter->parent,
-					iter->evsel, al, max_stack_depth);
+	err = sample__resolve_callchain(iter->sample, iter->session,
+					&iter->parent, iter->evsel, al,
+					max_stack_depth);
 	if (err)
 		return err;
 

@@ -8,6 +8,7 @@
 #include "unwind-libdw.h"
 #include "machine.h"
 #include "thread.h"
+#include "session.h"
 #include <linux/types.h>
 #include "event.h"
 #include "perf_regs.h"
@@ -26,10 +27,9 @@ static int __report_module(struct addr_location *al, u64 ip,
 	Dwfl_Module *mod;
 	struct dso *dso = NULL;
 
-	thread__find_addr_location(ui->thread,
-				   PERF_RECORD_MISC_USER,
-				   MAP__FUNCTION, ip, al);
-
+	session__find_addr_location(ui->session, ui->thread,
+				    PERF_RECORD_MISC_USER, MAP__FUNCTION,
+				    ip, al, ui->sample->time);
 	if (al->map)
 		dso = al->map->dso;
 
@@ -89,8 +89,8 @@ static int access_dso_mem(struct unwind_info *ui, Dwarf_Addr addr,
 	struct addr_location al;
 	ssize_t size;
 
-	thread__find_addr_map(ui->thread, PERF_RECORD_MISC_USER,
-			      MAP__FUNCTION, addr, &al);
+	session__find_addr_map(ui->session, ui->thread, PERF_RECORD_MISC_USER,
+			       MAP__FUNCTION, addr, &al, ui->sample->time);
 	if (!al.map) {
 		pr_debug("unwind: no map for %lx\n", (unsigned long)addr);
 		return -1;
@@ -165,12 +165,14 @@ frame_callback(Dwfl_Frame *state, void *arg)
 
 int unwind__get_entries(unwind_entry_cb_t cb, void *arg,
 			struct thread *thread,
+			struct perf_session *session,
 			struct perf_sample *data,
 			int max_stack)
 {
 	struct unwind_info ui = {
 		.sample		= data,
 		.thread		= thread,
+		.session 	= session,
 		.machine	= thread->mg->machine,
 		.cb		= cb,
 		.arg		= arg,
