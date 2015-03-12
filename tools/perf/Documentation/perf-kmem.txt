@@ -37,7 +37,10 @@ OPTIONS
 
 -s <key[,key2...]>::
 --sort=<key[,key2...]>::
-	Sort the output (default: frag,hit,bytes)
+	Sort the output (default: 'frag,hit,bytes' for slab and 'bytes,hit'
+	for page).  Available sort keys are 'ptr, callsite, bytes, hit,
+	pingpong, frag' for slab and 'page, callsite, bytes, hit, order,
+	mtype, gfp' for page.
 
 -l <num>::
 --line=<num>::
