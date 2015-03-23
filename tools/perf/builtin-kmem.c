@@ -243,6 +243,7 @@ static unsigned long nr_page_frees;
 static unsigned long nr_page_fails;
 static unsigned long nr_page_nomatch;
 
+static bool live_page;
 static struct perf_session *kmem_session;
 
 #define MAX_MIGRATE_TYPES  6
@@ -263,6 +264,7 @@ struct page_stat {
 	int 		nr_free;
 };
 
+static struct rb_root page_live_tree;
 static struct rb_root page_alloc_tree;
 static struct rb_root page_alloc_sorted;
 static struct rb_root page_caller_tree;
@@ -405,6 +407,44 @@ struct sort_dimension {
 static LIST_HEAD(page_alloc_sort_input);
 static LIST_HEAD(page_caller_sort_input);
 
+static struct page_stat *search_page_live_stat(struct page_stat *this,
+					       bool create)
+{
+	struct rb_node **node = &page_live_tree.rb_node;
+	struct rb_node *parent = NULL;
+	struct page_stat *data;
+
+	while (*node) {
+		s64 cmp;
+
+		parent = *node;
+		data = rb_entry(*node, struct page_stat, node);
+
+		cmp = data->page - this->page;
+		if (cmp < 0)
+			node = &parent->rb_left;
+		else if (cmp > 0)
+			node = &parent->rb_right;
+		else
+			return data;
+	}
+
+	if (!create)
+		return NULL;
+
+	data = zalloc(sizeof(*data));
+	if (data != NULL) {
+		data->page = this->page;
+		data->order = this->order;
+		data->migrate_type = this->migrate_type;
+		data->gfp_flags = this->gfp_flags;
+
+		rb_link_node(&data->node, parent, node);
+		rb_insert_color(&data->node, &page_live_tree);
+	}
+
+	return data;
+}
 static struct page_stat *search_page_alloc_stat(struct page_stat *this,
 						bool create)
 {
@@ -523,11 +563,14 @@ static int perf_evsel__process_page_alloc_event(struct perf_evsel *evsel,
 	callsite = find_callsite(evsel, sample);
 
 	/*
+	 * This is to find the current page (with correct gfp flags and
+	 * migrate_type) at free event.
+	 *
 	 * XXX: We'd better to use PFN instead of page pointer to deal
 	 * with things like partial freeing.  But AFAIK there's no way
 	 * to convert a pointer to struct page into PFN in userspace.
 	 */
-	stat = search_page_alloc_stat(&this, true);
+	stat = search_page_live_stat(&this, true);
 	if (stat == NULL) {
 		pr_err("cannot create page alloc stat\n");
 		return -1;
@@ -536,6 +579,18 @@ static int perf_evsel__process_page_alloc_event(struct perf_evsel *evsel,
 	stat->nr_alloc++;
 	stat->alloc_bytes += bytes;
 	stat->callsite = callsite;
+
+	if (!live_page) {
+		stat = search_page_alloc_stat(&this, true);
+		if (stat == NULL) {
+			pr_err("cannot create page alloc stat\n");
+			return -1;
+		}
+
+		stat->nr_alloc++;
+		stat->alloc_bytes += bytes;
+		stat->callsite = callsite;
+	}
 
 	this.callsite = callsite;
 	stat = search_page_caller_stat(&this, true);
@@ -572,7 +627,7 @@ static int perf_evsel__process_page_free_event(struct perf_evsel *evsel,
 	nr_page_frees++;
 	total_page_free_bytes += bytes;
 
-	stat = search_page_alloc_stat(&this, false);
+	stat = search_page_live_stat(&this, false);
 	if (stat == NULL) {
 		pr_debug2("missing free at page %"PRIx64" (order: %d)\n",
 			  page, order);
@@ -583,17 +638,37 @@ static int perf_evsel__process_page_free_event(struct perf_evsel *evsel,
 		return 0;
 	}
 
-	stat->nr_free++;
-	stat->free_bytes += bytes;
-
 	this.callsite = stat->callsite;
 	this.gfp_flags = stat->gfp_flags;
 	this.migrate_type = stat->migrate_type;
+
+	rb_erase(&stat->node, &page_live_tree);
+	free(stat);
+
+	if (live_page) {
+		order_stats[this.order][this.migrate_type]--;
+	} else {
+		stat = search_page_alloc_stat(&this, false);
+		if (stat != NULL) {
+			stat->nr_free++;
+			stat->free_bytes += bytes;
+		}
+	}
 
 	stat = search_page_caller_stat(&this, false);
 	if (stat != NULL) {
 		stat->nr_free++;
 		stat->free_bytes += bytes;
+
+		if (live_page) {
+			stat->nr_alloc--;
+			stat->alloc_bytes -= bytes;
+
+			if (stat->nr_alloc == 0) {
+				rb_erase(&stat->node, &page_caller_tree);
+				free(stat);
+			}
+		}
 	}
 
 	return 0;
@@ -712,7 +787,8 @@ static void __print_page_alloc_result(struct perf_session *session, int n_lines)
 	struct machine *machine = &session->machines.host;
 
 	printf("\n%.105s\n", graph_dotted_line);
-	printf(" Page             | Total alloc (KB) | Hits      | Order | Migration type | GFP flags | Callsite\n");
+	printf(" Page             | %5s alloc (KB) | Hits      | Order | Migration type | GFP flags | Callsite\n",
+	       live_page ? "Live" : "Total");
 	printf("%.105s\n", graph_dotted_line);
 
 	while (next && n_lines--) {
@@ -752,7 +828,8 @@ static void __print_page_caller_result(struct perf_session *session, int n_lines
 	struct machine *machine = &session->machines.host;
 
 	printf("\n%.105s\n", graph_dotted_line);
-	printf(" Total alloc (KB) | Hits      | Order | Migration type | GFP flags | Callsite\n");
+	printf(" %5s alloc (KB) | Hits      | Order | Migration type | GFP flags | Callsite\n",
+	       live_page ? "Live" : "Total");
 	printf("%.105s\n", graph_dotted_line);
 
 	while (next && n_lines--) {
@@ -977,8 +1054,13 @@ static void sort_result(void)
 				   &slab_caller_sort);
 	}
 	if (kmem_page) {
-		__sort_page_result(&page_alloc_tree, &page_alloc_sorted,
-				   &page_alloc_sort);
+		if (live_page)
+			__sort_page_result(&page_live_tree, &page_alloc_sorted,
+					   &page_alloc_sort);
+		else
+			__sort_page_result(&page_alloc_tree, &page_alloc_sorted,
+					   &page_alloc_sort);
+
 		__sort_page_result(&page_caller_tree, &page_caller_sorted,
 				   &page_caller_sort);
 	}
@@ -1509,6 +1591,7 @@ int cmd_kmem(int argc, const char **argv, const char *prefix __maybe_unused)
 			   parse_slab_opt),
 	OPT_CALLBACK_NOOPT(0, "page", NULL, NULL, "Analyze page allocator",
 			   parse_page_opt),
+	OPT_BOOLEAN(0, "live", &live_page, "Show live page stat"),
 	OPT_END()
 	};
 	const char *const kmem_subcommands[] = { "record", "stat", NULL };
