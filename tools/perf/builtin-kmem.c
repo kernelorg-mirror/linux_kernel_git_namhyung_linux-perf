@@ -545,6 +545,72 @@ static bool valid_page(u64 pfn_or_page)
 	return true;
 }
 
+struct gfp_flag {
+	unsigned int flags;
+	char *human_readable;
+};
+
+static struct gfp_flag *gfps;
+static int nr_gfps;
+
+static int gfpcmp(const void *a, const void *b)
+{
+	const struct gfp_flag *fa = a;
+	const struct gfp_flag *fb = b;
+
+	return fa->flags - fb->flags;
+}
+
+static int parse_gfp_flags(struct perf_evsel *evsel, struct perf_sample *sample,
+			   unsigned int gfp_flags)
+{
+	struct pevent_record record = {
+		.cpu = sample->cpu,
+		.data = sample->raw_data,
+		.size = sample->raw_size,
+	};
+	struct trace_seq seq;
+	char *str;
+
+	if (nr_gfps) {
+		struct gfp_flag key = {
+			.flags = gfp_flags,
+		};
+
+		if (bsearch(&key, gfps, nr_gfps, sizeof(*gfps), gfpcmp))
+			return 0;
+	}
+
+	trace_seq_init(&seq);
+	pevent_event_info(&seq, evsel->tp_format, &record);
+
+	str = strtok(seq.buffer, " ");
+	while (str) {
+		if (!strncmp(str, "gfp_flags=", 10)) {
+			struct gfp_flag *new;
+
+			new = realloc(gfps, (nr_gfps + 1) * sizeof(*gfps));
+			if (new == NULL)
+				return -ENOMEM;
+
+			gfps = new;
+			new += nr_gfps++;
+
+			new->flags = gfp_flags;
+			new->human_readable = strdup(str + 10);
+			if (new->human_readable == NULL)
+				return -ENOMEM;
+
+			qsort(gfps, nr_gfps, sizeof(*gfps), gfpcmp);
+		}
+
+		str = strtok(NULL, " ");
+	}
+
+	trace_seq_destroy(&seq);
+	return 0;
+}
+
 static int perf_evsel__process_page_alloc_event(struct perf_evsel *evsel,
 						struct perf_sample *sample)
 {
@@ -576,6 +642,9 @@ static int perf_evsel__process_page_alloc_event(struct perf_evsel *evsel,
 
 		return 0;
 	}
+
+	if (parse_gfp_flags(evsel, sample, gfp_flags) < 0)
+		return -1;
 
 	callsite = find_callsite(evsel, sample);
 
@@ -877,6 +946,16 @@ static void __print_page_caller_result(struct perf_session *session, int n_lines
 	printf("%.105s\n", graph_dotted_line);
 }
 
+static void print_gfp_flags(void)
+{
+	int i;
+
+	printf("# GFP flags\n");
+	printf("# ---------\n");
+	for (i = 0; i < nr_gfps; i++)
+		printf("# %08x: %s\n", gfps[i].flags, gfps[i].human_readable);
+}
+
 static void print_slab_summary(void)
 {
 	printf("\nSUMMARY (SLAB allocator)");
@@ -946,6 +1025,8 @@ static void print_slab_result(struct perf_session *session)
 
 static void print_page_result(struct perf_session *session)
 {
+	if (caller_flag || alloc_flag)
+		print_gfp_flags();
 	if (caller_flag)
 		__print_page_caller_result(session, caller_lines);
 	if (alloc_flag)
