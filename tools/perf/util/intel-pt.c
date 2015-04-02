@@ -2032,7 +2032,7 @@ int intel_pt_process_auxtrace_info(union perf_event *event,
 	intel_pt_log_set_name(INTEL_PT_PMU_NAME);
 
 	pt->session = session;
-	pt->machine = &session->machines.host; /* No kvm support */
+	pt->machine = &session->machines->host; /* No kvm support */
 	pt->auxtrace_type = auxtrace_info->type;
 	pt->pmu_type = auxtrace_info->priv[INTEL_PT_PMU_TYPE];
 	pt->tc.time_shift = auxtrace_info->priv[INTEL_PT_TIME_SHIFT];

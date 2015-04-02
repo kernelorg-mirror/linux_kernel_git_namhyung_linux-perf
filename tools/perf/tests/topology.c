@@ -6,6 +6,7 @@
 #include "session.h"
 #include "evlist.h"
 #include "debug.h"
+#include "tool.h"
 
 #define TEMPL "/tmp/perf-test-XXXXXX"
 #define DATA_SIZE	10
@@ -28,17 +29,19 @@ static int get_temp(char *path)
 
 static int session_write_header(char *path)
 {
-	struct machines *machines;
+	struct perf_tool tool = {
+		.ordered_events = false,
+	};
 	struct perf_session *session;
 	struct perf_data_file file = {
 		.path = path,
 		.mode = PERF_DATA_MODE_WRITE,
 	};
 
-	machines = machines__new();
-	TEST_ASSERT_VAL("can't get machines", machines);
+	tool.machines = machines__new();
+	TEST_ASSERT_VAL("can't get machines", tool.machines);
 
-	session = perf_session__new(&file, false, NULL);
+	session = perf_session__new(&file, false, &tool);
 	TEST_ASSERT_VAL("can't get session", session);
 
 	session->evlist = perf_evlist__new_default();
@@ -53,14 +56,16 @@ static int session_write_header(char *path)
 			!perf_session__write_header(session, session->evlist, file.fd, true));
 
 	perf_session__delete(session);
-	machines__delete(machines);
+	machines__delete(tool.machines);
 
 	return 0;
 }
 
 static int check_cpu_topology(char *path, struct cpu_map *map)
 {
-	struct machines *machines;
+	struct perf_tool tool = {
+		.ordered_events = false,
+	};
 	struct perf_session *session;
 	struct perf_data_file file = {
 		.path = path,
@@ -68,10 +73,10 @@ static int check_cpu_topology(char *path, struct cpu_map *map)
 	};
 	int i;
 
-	machines = machines__new();
-	TEST_ASSERT_VAL("can't get machines", machines);
+	tool.machines = machines__new();
+	TEST_ASSERT_VAL("can't get machines", tool.machines);
 
-	session = perf_session__new(&file, false, NULL);
+	session = perf_session__new(&file, false, &tool);
 	TEST_ASSERT_VAL("can't get session", session);
 
 	for (i = 0; i < session->header.env.nr_cpus_online; i++) {
@@ -89,7 +94,7 @@ static int check_cpu_topology(char *path, struct cpu_map *map)
 	}
 
 	perf_session__delete(session);
-	machines__delete(machines);
+	machines__delete(tool.machines);
 
 	return 0;
 }
