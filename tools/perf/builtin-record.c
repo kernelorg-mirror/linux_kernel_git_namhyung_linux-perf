@@ -684,7 +684,7 @@ static int __cmd_record(struct record *rec, int argc, const char **argv)
 		goto out_child;
 	}
 
-	machine = &session->machines.host;
+	machine = &session->machines->host;
 
 	if (file->is_pipe) {
 		err = perf_event__synthesize_attrs(tool, session,
@@ -735,7 +735,7 @@ static int __cmd_record(struct record *rec, int argc, const char **argv)
 		       "Check /proc/modules permission or run as root.\n");
 
 	if (perf_guest) {
-		machines__process_guests(&session->machines,
+		machines__process_guests(session->machines,
 					 perf_event__synthesize_guest_os, tool);
 	}
 
