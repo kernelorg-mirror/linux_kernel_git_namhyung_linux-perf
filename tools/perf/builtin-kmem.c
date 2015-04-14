@@ -1882,6 +1882,7 @@ int cmd_kmem(int argc, const char **argv, const char *prefix __maybe_unused)
 	};
 	struct perf_session *session;
 	int ret = -1;
+	const char errmsg[] = "Not found %s events.  Have you run 'perf kmem record --%s' before?\n";
 
 	perf_config(kmem_config, NULL);
 	argc = parse_options_subcommand(argc, argv, kmem_options,
@@ -1908,11 +1909,35 @@ int cmd_kmem(int argc, const char **argv, const char *prefix __maybe_unused)
 	if (session == NULL)
 		return -1;
 
-	if (kmem_page) {
-		struct perf_evsel *evsel = perf_evlist__first(session->evlist);
+	if (kmem_slab) {
+		struct perf_evsel *evsel;
+		bool found = false;
 
-		if (evsel == NULL || evsel->tp_format == NULL) {
-			pr_err("invalid event found.. aborting\n");
+		evlist__for_each(session->evlist, evsel) {
+			if (!strcmp(perf_evsel__name(evsel), "kmem:kmalloc")) {
+				found = true;
+				break;
+			}
+		}
+		if (!found) {
+			pr_err(errmsg, "slab", "slab");
+			return -1;
+		}
+	}
+
+	if (kmem_page) {
+		struct perf_evsel *evsel;
+		bool found = false;
+
+		evlist__for_each(session->evlist, evsel) {
+			if (!strcmp(perf_evsel__name(evsel),
+				    "kmem:mm_page_alloc")) {
+				found = true;
+				break;
+			}
+		}
+		if (!found) {
+			pr_err(errmsg, "page", "page");
 			return -1;
 		}
 
