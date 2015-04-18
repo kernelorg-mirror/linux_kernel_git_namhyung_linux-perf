@@ -1877,19 +1877,11 @@ static int perf_evsel__hists_browse(struct perf_evsel *evsel, int nr_events,
 					goto out_free_stack;
 				continue;
 			}
-			top = pstack__pop(fstack);
-			if (top == &browser->hists->dso_filter) {
-				perf_hpp__set_elide(HISTC_DSO, false);
-				browser->hists->dso_filter = NULL;
-				hists__filter_by_dso(browser->hists);
-			}
-			if (top == &browser->hists->thread_filter) {
-				perf_hpp__set_elide(HISTC_THREAD, false);
-				thread__zput(browser->hists->thread_filter);
-				hists__filter_by_thread(browser->hists);
-			}
-			ui_helpline__pop();
-			hist_browser__reset(browser);
+			top = pstack__peek(fstack);
+			if (top == &browser->hists->dso_filter)
+				do_zoom_dso(opts, browser, hbt, fstack, env);
+			if (top == &browser->hists->thread_filter)
+				do_zoom_thread(opts, browser, hbt, fstack, env);
 			continue;
 		}
 		case K_ESC:
