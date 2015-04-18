@@ -61,7 +61,7 @@ static int hist_browser__get_folding(struct hist_browser *browser)
 			rb_entry(nd, struct hist_entry, rb_node);
 
 		if (he->ms.unfolded)
-			unfolded_rows += he->nr_rows;
+			unfolded_rows += he->tui.nr_rows;
 	}
 	return unfolded_rows;
 }
@@ -288,16 +288,16 @@ static bool hist_browser__toggle_fold(struct hist_browser *browser)
 		struct hist_entry *he = browser->he_selection;
 
 		hist_entry__init_have_children(he);
-		browser->b.nr_entries -= he->nr_rows;
-		browser->nr_callchain_rows -= he->nr_rows;
+		browser->b.nr_entries -= he->tui.nr_rows;
+		browser->nr_callchain_rows -= he->tui.nr_rows;
 
 		if (he->ms.unfolded)
-			he->nr_rows = callchain__count_rows(&he->sorted_chain);
+			he->tui.nr_rows = callchain__count_rows(&he->sorted_chain);
 		else
-			he->nr_rows = 0;
+			he->tui.nr_rows = 0;
 
-		browser->b.nr_entries += he->nr_rows;
-		browser->nr_callchain_rows += he->nr_rows;
+		browser->b.nr_entries += he->tui.nr_rows;
+		browser->nr_callchain_rows += he->tui.nr_rows;
 
 		return true;
 	}
@@ -367,9 +367,9 @@ static void hist_entry__set_folding(struct hist_entry *he, bool unfold)
 
 	if (he->ms.has_children) {
 		int n = callchain__set_folding(&he->sorted_chain, unfold);
-		he->nr_rows = unfold ? n : 0;
+		he->tui.nr_rows = unfold ? n : 0;
 	} else
-		he->nr_rows = 0;
+		he->tui.nr_rows = 0;
 }
 
 static void
@@ -383,7 +383,7 @@ __hist_browser__set_folding(struct hist_browser *browser, bool unfold)
 	     nd = rb_next(nd)) {
 		struct hist_entry *he = rb_entry(nd, struct hist_entry, rb_node);
 		hist_entry__set_folding(he, unfold);
-		browser->nr_callchain_rows += he->nr_rows;
+		browser->nr_callchain_rows += he->tui.nr_rows;
 	}
 }
 
@@ -459,7 +459,7 @@ static int hist_browser__run(struct hist_browser *browser,
 					   browser->b.rows,
 					   browser->b.index,
 					   browser->b.top_idx,
-					   h->row_offset, h->nr_rows);
+					   h->tui.row_offset, h->tui.nr_rows);
 		}
 			break;
 		case 'C':
@@ -742,7 +742,7 @@ static int hist_browser__show_entry(struct hist_browser *browser,
 	int width = browser->b.width;
 	char folded_sign = ' ';
 	bool current_entry = ui_browser__is_current_entry(&browser->b, row);
-	off_t row_offset = entry->row_offset;
+	off_t row_offset = entry->tui.row_offset;
 	bool first = true;
 	struct perf_hpp_fmt *fmt;
 
@@ -997,7 +997,7 @@ static void ui_browser__hists_seek(struct ui_browser *browser,
 	 * row_offset:
 	 */
 	h = rb_entry(browser->top, struct hist_entry, rb_node);
-	h->row_offset = 0;
+	h->tui.row_offset = 0;
 
 	/*
 	 * Here we have to check if nd is expanded (+), if it is we can't go
@@ -1017,12 +1017,12 @@ do_offset:
 		do {
 			h = rb_entry(nd, struct hist_entry, rb_node);
 			if (h->ms.unfolded) {
-				u16 remaining = h->nr_rows - h->row_offset;
+				u16 remaining = h->tui.nr_rows - h->tui.row_offset;
 				if (offset > remaining) {
 					offset -= remaining;
-					h->row_offset = 0;
+					h->tui.row_offset = 0;
 				} else {
-					h->row_offset += offset;
+					h->tui.row_offset += offset;
 					offset = 0;
 					browser->top = nd;
 					break;
@@ -1039,21 +1039,21 @@ do_offset:
 			h = rb_entry(nd, struct hist_entry, rb_node);
 			if (h->ms.unfolded) {
 				if (first) {
-					if (-offset > h->row_offset) {
-						offset += h->row_offset;
-						h->row_offset = 0;
+					if (-offset > h->tui.row_offset) {
+						offset += h->tui.row_offset;
+						h->tui.row_offset = 0;
 					} else {
-						h->row_offset += offset;
+						h->tui.row_offset += offset;
 						offset = 0;
 						browser->top = nd;
 						break;
 					}
 				} else {
-					if (-offset > h->nr_rows) {
-						offset += h->nr_rows;
-						h->row_offset = 0;
+					if (-offset > h->tui.nr_rows) {
+						offset += h->tui.nr_rows;
+						h->tui.row_offset = 0;
 					} else {
-						h->row_offset = h->nr_rows + offset;
+						h->tui.row_offset = h->tui.nr_rows + offset;
 						offset = 0;
 						browser->top = nd;
 						break;
@@ -1075,7 +1075,7 @@ do_offset:
 				 */
 				h = rb_entry(nd, struct hist_entry, rb_node);
 				if (h->ms.unfolded)
-					h->row_offset = h->nr_rows;
+					h->tui.row_offset = h->tui.nr_rows;
 				break;
 			}
 			first = false;
@@ -1083,7 +1083,7 @@ do_offset:
 	} else {
 		browser->top = nd;
 		h = rb_entry(nd, struct hist_entry, rb_node);
-		h->row_offset = 0;
+		h->tui.row_offset = 0;
 	}
 }
 
