@@ -73,6 +73,7 @@ struct hist_entry_diff {
 struct hist_entry_tui {
 	u16			row_offset;
 	u16			nr_rows;
+	bool			init_have_children;
 };
 
 /**
@@ -101,7 +102,6 @@ struct hist_entry {
 	/* We are added by hists__add_dummy_entry. */
 	bool			dummy;
 
-	bool			init_have_children;
 	char			level;
 	u8			filtered;
 	union {

@@ -275,10 +275,10 @@ static void callchain__init_have_children(struct rb_root *root)
 
 static void hist_entry__init_have_children(struct hist_entry *he)
 {
-	if (!he->init_have_children) {
+	if (!he->tui.init_have_children) {
 		he->ms.has_children = !RB_EMPTY_ROOT(&he->sorted_chain);
 		callchain__init_have_children(&he->sorted_chain);
-		he->init_have_children = true;
+		he->tui.init_have_children = true;
 	}
 }
 
