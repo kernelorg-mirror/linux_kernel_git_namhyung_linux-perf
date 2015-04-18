@@ -1691,7 +1691,8 @@ skip_annotation:
 				"Switch to another data file in PWD") > 0)
 			switch_data = nr_options++;
 add_exit_option:
-		options[nr_options++] = (char *)"Exit";
+		if (asprintf(&options[nr_options], "Exit") > 0)
+			nr_options++;
 retry_popup_menu:
 		choice = ui__popup_menu(nr_options, options);
 
@@ -1812,7 +1813,7 @@ out_free_stack:
 	pstack__delete(fstack);
 out:
 	hist_browser__delete(browser);
-	free_popup_options(options, nr_options - 1);
+	free_popup_options(options, ARRAY_SIZE(options));
 	return key;
 }
 
