@@ -167,7 +167,7 @@ static struct map *kernel_get_module_map(const char *module)
 
 	/* A file path -- this is an offline module */
 	if (module && strchr(module, '/'))
-		return machine__findnew_module_map(host_machine, 0, module);
+		return machine__findnew_module_map(host_machine, 0, module, 0);
 
 	if (!module)
 		module = "kernel";
