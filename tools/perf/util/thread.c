@@ -163,7 +163,7 @@ struct thread *thread__get(struct thread *thread)
 
 void thread__put(struct thread *thread)
 {
-	if (thread && atomic_dec_and_test(&thread->refcnt)) {
+	if (thread && atomic_dec_and_test(&thread->refcnt) && 0) {
 		if (!RB_EMPTY_NODE(&thread->rb_node)) {
 			struct machine *machine = thread->mg->machine;
 
