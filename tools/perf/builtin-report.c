@@ -55,6 +55,7 @@ struct report {
 	bool			header_only;
 	bool			nonany_branch_mode;
 	bool			multi_thread;
+	int			nr_thread;
 	int			max_stack;
 	struct perf_read_values	show_threads_values;
 	const char		*pretty_printing_style;
@@ -89,6 +90,10 @@ static int report__config(const char *var, const char *value, void *cb)
 	}
 	if (!strcmp(var, "report.multi-thread")) {
 		rep->multi_thread = perf_config_bool(var, value);
+		return 0;
+	}
+	if (!strcmp(var, "report.num-thread")) {
+		rep->nr_thread = perf_config_int(var, value);
 		return 0;
 	}
 
@@ -562,7 +567,8 @@ static int __cmd_report(struct report *rep)
 
 	if (rep->multi_thread) {
 		rep->tool.sample = process_sample_event_mt;
-		ret = perf_session__process_events_mt(session, rep);
+		ret = perf_session__process_events_mt(session, rep->nr_thread,
+						      rep);
 	} else {
 		ret = perf_session__process_events(session);
 	}
@@ -705,6 +711,7 @@ int cmd_report(int argc, const char **argv, const char *prefix __maybe_unused)
 		.max_stack		 = PERF_MAX_STACK_DEPTH,
 		.pretty_printing_style	 = "normal",
 		.socket_filter		 = -1,
+		.nr_thread		 = -1,
 	};
 	const struct option options[] = {
 	OPT_STRING('i', "input", &input_name, "file",
@@ -821,6 +828,8 @@ int cmd_report(int argc, const char **argv, const char *prefix __maybe_unused)
 		    "only show processor socket that match with this filter"),
 	OPT_BOOLEAN(0, "multi-thread", &report.multi_thread,
 		    "Speed up sample processing using multi-thead"),
+	OPT_INTEGER(0, "num-thread", &report.nr_thread,
+		    "Number of thread to process samples (>= 2)"),
 	OPT_END()
 	};
 	struct perf_data_file file = {
@@ -886,9 +895,21 @@ repeat:
 
 	session->itrace_synth_opts = &itrace_synth_opts;
 
-	if (report.multi_thread && !perf_has_index) {
-		pr_debug("fallback to single thread for normal data file.\n");
-		report.multi_thread = false;
+	if (report.multi_thread) {
+		if (!perf_has_index) {
+			pr_debug("fallback to single thread for normal data file.\n");
+			report.multi_thread = false;
+		} else {
+			if (report.nr_thread == -1)
+				report.nr_thread = sysconf(_SC_NPROCESSORS_ONLN);
+			else if (report.nr_thread < 2) {
+				pr_err("invalid number of thread: %d\n",
+				       report.nr_thread);
+				parse_options_usage(report_usage, options,
+						    "num-thread", 0);
+				goto error;
+			}
+		}
 	}
 
 	report.session = session;
