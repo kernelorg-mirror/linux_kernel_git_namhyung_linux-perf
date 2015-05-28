@@ -749,6 +749,10 @@ int cmd_inject(int argc, const char **argv, const char *prefix __maybe_unused)
 
 	inject.tool.ordered_events = inject.sched_stat;
 
+	inject.tool.machines = machines__new();
+	if (inject.tool.machines == NULL)
+		return -1;
+
 	file.path = inject.input_name;
 	inject.session = perf_session__new(&file, true, &inject.tool);
 	if (inject.session == NULL)
@@ -762,5 +766,7 @@ int cmd_inject(int argc, const char **argv, const char *prefix __maybe_unused)
 
 out_delete:
 	perf_session__delete(inject.session);
+	machines__delete(inject.tool.machines);
+
 	return ret;
 }
