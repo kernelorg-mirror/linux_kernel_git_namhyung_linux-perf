@@ -454,6 +454,9 @@ void dso__reset_find_symbol_cache(struct dso *dso)
 struct symbol *dso__find_symbol(struct dso *dso,
 				enum map_type type, u64 addr)
 {
+	if (perf_has_index)
+		return symbols__find(&dso->symbols[type], addr);
+
 	if (dso->last_find_result[type].addr != addr) {
 		dso->last_find_result[type].addr   = addr;
 		dso->last_find_result[type].symbol = symbols__find(&dso->symbols[type], addr);
