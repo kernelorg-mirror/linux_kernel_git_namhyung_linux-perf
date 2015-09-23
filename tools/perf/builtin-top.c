@@ -1225,6 +1225,8 @@ static int __cmd_top(struct perf_top *top)
 	if ((int)top->nr_threads > top->evlist->nr_mmaps)
 		top->nr_threads = top->evlist->nr_mmaps;
 
+	symbol_conf.multi_thread = (top->nr_threads > 1);
+
 	nr_idx = top->evlist->nr_mmaps / top->nr_threads;
 	rem = top->evlist->nr_mmaps % top->nr_threads;
 
