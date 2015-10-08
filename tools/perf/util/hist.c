@@ -1008,6 +1008,14 @@ bool hists__collapse_insert_entry(struct hists *hists __maybe_unused,
 	}
 	hists->nr_entries++;
 
+	/*
+	 * If a hist entry is processed in multi-threaded environment,
+	 * it points to a dummy local hists which was used only for
+	 * intermidate processing.  So update it to a real one so that
+	 * it can find the correct info later.
+	 */
+	he->hists = hists;
+
 	rb_link_node(&he->rb_node_in, parent, p);
 	rb_insert_color(&he->rb_node_in, root);
 	return true;
