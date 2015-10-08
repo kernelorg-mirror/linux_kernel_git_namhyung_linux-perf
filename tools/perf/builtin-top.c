@@ -831,6 +831,57 @@ static int symbol_filter(struct map *map, struct symbol *sym)
 	return 0;
 }
 
+struct collector_arg {
+	struct perf_top		*top;
+	struct hists		*hists;
+};
+
+static void collect_hists(struct perf_top *top, struct hists *hists)
+{
+	int i, k;
+	struct perf_evsel *evsel;
+
+	for (i = 0, k = 0; i < top->evlist->nr_mmaps; i++) {
+		evlist__for_each(top->evlist, evsel) {
+			struct hists *src_hists = &hists[k++];
+			struct hists *dst_hists = evsel__hists(evsel);
+			struct hist_entry *he;
+			struct rb_root *root;
+			struct rb_node *next;
+
+			root = hists__get_rotate_entries_in(src_hists);
+			next = rb_first(root);
+
+			while (next) {
+				if (session_done())
+					return;
+				he = rb_entry(next, struct hist_entry, rb_node_in);
+				next = rb_next(next);
+
+				rb_erase(&he->rb_node_in, root);
+
+				pthread_mutex_lock(&dst_hists->lock);
+				hists__collapse_insert_entry(dst_hists,
+							     dst_hists->entries_in, he);
+				pthread_mutex_unlock(&dst_hists->lock);
+			}
+			hists__add_stats(dst_hists, src_hists);
+		}
+	}
+}
+
+static void *collect_worker(void *arg)
+{
+	struct collector_arg *carg = arg;
+
+	while (!done) {
+		collect_hists(carg->top, carg->hists);
+		poll(NULL, 0, 100);
+	}
+
+	return NULL;
+}
+
 static int hist_iter__top_callback(struct hist_entry_iter *iter,
 				   struct addr_location *al, bool single,
 				   void *arg)
@@ -847,13 +898,19 @@ static int hist_iter__top_callback(struct hist_entry_iter *iter,
 	return 0;
 }
 
-static void perf_event__process_sample(struct perf_tool *tool,
+struct reader_arg {
+	int			idx;
+	struct perf_top		*top;
+	struct hists		*hists;
+};
+
+static void perf_event__process_sample(struct reader_arg *rarg,
 				       const union perf_event *event,
 				       struct perf_evsel *evsel,
 				       struct perf_sample *sample,
 				       struct machine *machine)
 {
-	struct perf_top *top = container_of(tool, struct perf_top, tool);
+	struct perf_top *top = rarg->top;
 	struct addr_location al;
 	int err;
 
@@ -890,10 +947,10 @@ static void perf_event__process_sample(struct perf_tool *tool,
 		perf_top__request_warning(top, &al, WARN_VMLINUX);
 
 	if (al.sym == NULL || !al.sym->ignore) {
-		struct hists *hists = evsel__hists(evsel);
+		struct hists* hists = &rarg->hists[evsel->idx];
 		struct hist_entry_iter iter = {
 			.evsel		= evsel,
-			.hists 		= evsel__hists(evsel),
+			.hists 		= hists,
 			.sample 	= sample,
 			.add_entry_cb 	= hist_iter__top_callback,
 		};
@@ -915,13 +972,15 @@ static void perf_event__process_sample(struct perf_tool *tool,
 	addr_location__put(&al);
 }
 
-static void perf_top__mmap_read_idx(struct perf_top *top, int idx)
+static void perf_top__mmap_read(struct reader_arg *rarg)
 {
 	struct perf_sample sample;
 	struct perf_evsel *evsel;
+	struct perf_top *top = rarg->top;
 	struct perf_session *session = top->session;
 	union perf_event *event;
 	struct machine *machine;
+	int idx = rarg->idx;
 	u8 origin;
 	int ret;
 
@@ -974,10 +1033,11 @@ static void perf_top__mmap_read_idx(struct perf_top *top, int idx)
 
 
 		if (event->header.type == PERF_RECORD_SAMPLE) {
-			perf_event__process_sample(&top->tool, event, evsel,
+			perf_event__process_sample(rarg, event, evsel,
 						   &sample, machine);
 		} else if (event->header.type < PERF_RECORD_MAX) {
-			hists__inc_nr_events(evsel__hists(evsel), event->header.type);
+			hists__inc_nr_events(&rarg->hists[evsel->idx],
+					     event->header.type);
 			machine__process_event(machine, event, &sample);
 		} else
 			++session->evlist->stats.nr_unknown_events;
@@ -986,12 +1046,30 @@ next_event:
 	}
 }
 
-static void perf_top__mmap_read(struct perf_top *top)
+static void *mmap_read_worker(void *arg)
 {
-	int i;
+	struct reader_arg *rarg = arg;
+	struct perf_top *top = rarg->top;
 
-	for (i = 0; i < top->evlist->nr_mmaps; i++)
-		perf_top__mmap_read_idx(top, i);
+	if (top->realtime_prio) {
+		struct sched_param param;
+
+		param.sched_priority = top->realtime_prio;
+		if (sched_setscheduler(0, SCHED_FIFO, &param)) {
+			ui__error("Could not set realtime priority.\n");
+			return NULL;
+		}
+	}
+
+	while (!done) {
+		u64 hits = top->samples;
+
+		perf_top__mmap_read(rarg);
+
+		if (hits == top->samples)
+			perf_evlist__poll(top->evlist, 100);
+	}
+	return NULL;
 }
 
 static int perf_top__start_counters(struct perf_top *top)
@@ -1052,8 +1130,14 @@ static int perf_top__setup_sample_type(struct perf_top *top __maybe_unused)
 static int __cmd_top(struct perf_top *top)
 {
 	struct record_opts *opts = &top->record_opts;
-	pthread_t thread;
+	pthread_t *readers = NULL;
+	pthread_t collector = (pthread_t) 0;
+	pthread_t ui_thread = (pthread_t) 0;
+	struct hists *hists = NULL;
+	struct reader_arg *rargs = NULL;
+	struct collector_arg carg;
 	int ret;
+	int i;
 
 	top->session = perf_session__new(NULL, false, NULL);
 	if (top->session == NULL)
@@ -1104,37 +1188,63 @@ static int __cmd_top(struct perf_top *top)
 	/* Wait for a minimal set of events before starting the snapshot */
 	perf_evlist__poll(top->evlist, 100);
 
-	perf_top__mmap_read(top);
-
 	ret = -1;
-	if (pthread_create(&thread, NULL, (use_browser > 0 ? display_thread_tui :
-							    display_thread), top)) {
-		ui__error("Could not create display thread.\n");
+	readers = calloc(sizeof(pthread_t), top->evlist->nr_mmaps);
+	if (readers == NULL)
 		goto out_delete;
+
+	rargs = calloc(sizeof(*rargs), top->evlist->nr_mmaps);
+	if (rargs == NULL)
+		goto out_free;
+
+	hists = calloc(sizeof(*hists), top->evlist->nr_mmaps * top->evlist->nr_entries);
+	if (hists == NULL)
+		goto out_free;
+
+	for (i = 0; i < top->evlist->nr_mmaps * top->evlist->nr_entries; i++)
+		__hists__init(&hists[i]);
+
+	for (i = 0; i < top->evlist->nr_mmaps; i++) {
+		struct reader_arg *rarg = &rargs[i];
+
+		rarg->idx = i;
+		rarg->top = top;
+		rarg->hists = &hists[i * top->evlist->nr_entries];
+
+		perf_top__mmap_read(rarg);
 	}
+	collect_hists(top, hists);
 
-	if (top->realtime_prio) {
-		struct sched_param param;
-
-		param.sched_priority = top->realtime_prio;
-		if (sched_setscheduler(0, SCHED_FIFO, &param)) {
-			ui__error("Could not set realtime priority.\n");
+	for (i = 0; i < top->evlist->nr_mmaps; i++) {
+		if (pthread_create(&readers[i], NULL, mmap_read_worker, &rargs[i]))
 			goto out_join;
-		}
 	}
 
-	while (!done) {
-		u64 hits = top->samples;
+	carg.top = top;
+	carg.hists = hists;
+	if (pthread_create(&collector, NULL, collect_worker, &carg))
+		goto out_join;
 
-		perf_top__mmap_read(top);
-
-		if (hits == top->samples)
-			ret = perf_evlist__poll(top->evlist, 100);
+	if (pthread_create(&ui_thread, NULL, (use_browser > 0 ? display_thread_tui :
+							        display_thread), top)) {
+		ui__error("Could not create display thread.\n");
+		goto out_join;
 	}
 
 	ret = 0;
+
 out_join:
-	pthread_join(thread, NULL);
+	pthread_join(ui_thread, NULL);
+	pthread_join(collector, NULL);
+	for (i = 0; i < top->evlist->nr_mmaps; i++) {
+		pthread_join(readers[i], NULL);
+	}
+
+out_free:
+	free(hists);
+	free(rargs);
+	free(readers);
+
 out_delete:
 	perf_session__delete(top->session);
 	top->session = NULL;
