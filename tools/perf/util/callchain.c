@@ -805,6 +805,31 @@ char *callchain_list__sym_name(struct callchain_list *cl,
 	return bf;
 }
 
+char *callchain_node__sprintf_value(struct callchain_node *node,
+				    char *bf, size_t bfsize, u64 total)
+{
+	double percent = 0.0;
+	u64 cumul = callchain_cumul_hits(node);
+
+	if (total)
+		percent = cumul * 100.0 / total;
+
+	scnprintf(bf, bfsize, "%6.2f%%", percent);
+	return bf;
+}
+
+int callchain_node__fprintf_value(struct callchain_node *node,
+				 FILE *fp, u64 total)
+{
+	double percent = 0.0;
+	u64 cumul = callchain_cumul_hits(node);
+
+	if (total)
+		percent = cumul * 100.0 / total;
+
+	return percent_color_fprintf(fp, "%.2f%%", percent);
+}
+
 static void free_callchain_node(struct callchain_node *node)
 {
 	struct callchain_list *list, *tmp;
