@@ -43,7 +43,8 @@ enum chain_mode {
 	CHAIN_NONE,
 	CHAIN_FLAT,
 	CHAIN_GRAPH_ABS,
-	CHAIN_GRAPH_REL
+	CHAIN_GRAPH_REL,
+	CHAIN_FOLDED,
 };
 
 enum chain_order {

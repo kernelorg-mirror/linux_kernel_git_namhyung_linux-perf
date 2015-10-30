@@ -260,6 +260,56 @@ static size_t callchain__fprintf_flat(FILE *fp, struct rb_root *tree,
 	return ret;
 }
 
+static size_t __callchain__fprintf_folded(FILE *fp, struct callchain_node *node)
+{
+	struct callchain_list *chain;
+	size_t ret = 0;
+	char bf[1024];
+	bool first;
+
+	if (!node)
+		return 0;
+
+	ret += __callchain__fprintf_folded(fp, node->parent);
+
+	first = (ret == 0);
+	list_for_each_entry(chain, &node->val, list) {
+		if (chain->ip >= PERF_CONTEXT_MAX)
+			continue;
+		ret += fprintf(fp, "%s%s", first ? "" : ";",
+			       callchain_list__sym_name(chain,
+						bf, sizeof(bf), false));
+		first = false;
+	}
+
+	return ret;
+}
+
+static size_t callchain__fprintf_folded(FILE *fp, struct rb_root *tree,
+					u64 total_samples)
+{
+	size_t ret = 0;
+	u32 entries_printed = 0;
+	struct callchain_node *chain;
+	struct rb_node *rb_node = rb_first(tree);
+
+	while (rb_node) {
+		double percent;
+
+		chain = rb_entry(rb_node, struct callchain_node, rb_node);
+		percent = chain->hit * 100.0 / total_samples;
+
+		ret += __callchain__fprintf_folded(fp, chain);
+		ret += fprintf(fp, " %6.2f%%\n", percent);
+		if (++entries_printed == callchain_param.print_limit)
+			break;
+
+		rb_node = rb_next(rb_node);
+	}
+
+	return ret;
+}
+
 static size_t hist_entry_callchain__fprintf(struct hist_entry *he,
 					    u64 total_samples, int left_margin,
 					    FILE *fp)
@@ -277,6 +327,9 @@ static size_t hist_entry_callchain__fprintf(struct hist_entry *he,
 		break;
 	case CHAIN_FLAT:
 		return callchain__fprintf_flat(fp, &he->sorted_chain, total_samples);
+		break;
+	case CHAIN_FOLDED:
+		return callchain__fprintf_folded(fp, &he->sorted_chain, total_samples);
 		break;
 	case CHAIN_NONE:
 		break;
