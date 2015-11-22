@@ -281,6 +281,7 @@ void sighandler_dump_stack(int sig);
 
 extern unsigned int page_size;
 extern int cacheline_size;
+extern unsigned long mmap_min_addr;
 
 void get_term_dimensions(struct winsize *ws);
 void set_term_quiet_input(struct termios *old);

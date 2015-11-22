@@ -1860,6 +1860,19 @@ check_calls:
 #endif
 		ip = chain->ips[j];
 
+		/*
+		 * Callchain value under mmap_min_addr means it's broken
+		 * or the end of callchain.  Stop.
+		 */
+		if (ip < mmap_min_addr) {
+			if (callchain_param.order == ORDER_CALLEE)
+				break;
+
+			/* ignore current callchains for CALLER order */
+			callchain_cursor_reset(&callchain_cursor);
+			continue;
+		}
+
 		err = add_callchain_ip(thread, parent, root_al, &cpumode, ip);
 
 		if (err)

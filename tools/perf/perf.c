@@ -18,6 +18,7 @@
 #include "util/bpf-loader.h"
 #include "util/debug.h"
 #include <api/fs/tracing_path.h>
+#include <api/fs/fs.h>
 #include <pthread.h>
 
 const char perf_usage_string[] =
@@ -528,10 +529,15 @@ int main(int argc, const char **argv)
 {
 	const char *cmd;
 	char sbuf[STRERR_BUFSIZE];
+	int min_addr;
 
 	/* The page_size is placed in util object. */
 	page_size = sysconf(_SC_PAGE_SIZE);
 	cacheline_size = sysconf(_SC_LEVEL1_DCACHE_LINESIZE);
+
+	if (sysctl__read_int("vm/mmap_min_addr", &min_addr) < 0)
+		min_addr = page_size;
+	mmap_min_addr = min_addr;
 
 	cmd = perf_extract_argv0_path(argv[0]);
 	if (!cmd)

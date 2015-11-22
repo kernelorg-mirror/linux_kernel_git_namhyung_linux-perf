@@ -30,6 +30,7 @@ struct callchain_param	callchain_param = {
  */
 unsigned int page_size;
 int cacheline_size;
+unsigned long mmap_min_addr;
 
 bool test_attr__enabled;
 
