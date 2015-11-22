@@ -25,6 +25,7 @@
 #include <linux/cpu.h>
 #include <linux/bitops.h>
 #include <linux/device.h>
+#include <linux/security.h>
 
 #include <asm/apic.h>
 #include <asm/stacktrace.h>
@@ -2262,6 +2263,9 @@ perf_callchain_user32(struct pt_regs *regs, struct perf_callchain_entry *entry)
 		if (!valid_user_frame(fp, sizeof(frame)))
 			break;
 
+		if (cs_base + frame.return_address < mmap_min_addr)
+			break;
+
 		perf_callchain_store(entry, cs_base + frame.return_address);
 		fp = compat_ptr(ss_base + frame.next_frame);
 	}
@@ -2312,6 +2316,9 @@ perf_callchain_user(struct perf_callchain_entry *entry, struct pt_regs *regs)
 			break;
 
 		if (!valid_user_frame(fp, sizeof(frame)))
+			break;
+
+		if (frame.return_address < mmap_min_addr)
 			break;
 
 		perf_callchain_store(entry, frame.return_address);
