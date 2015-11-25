@@ -1618,6 +1618,8 @@ static int add_callchain_ip(struct thread *thread,
 		}
 	}
 
+	if (symbol_conf.hide_unresolved && al.sym == NULL)
+		return 0;
 	return callchain_cursor_append(&callchain_cursor, al.addr, al.map, al.sym);
 }
 
@@ -1885,6 +1887,9 @@ check_calls:
 static int unwind_entry(struct unwind_entry *entry, void *arg)
 {
 	struct callchain_cursor *cursor = arg;
+
+	if (symbol_conf.hide_unresolved && entry->sym == NULL)
+		return 0;
 	return callchain_cursor_append(cursor, entry->ip,
 				       entry->map, entry->sym);
 }
