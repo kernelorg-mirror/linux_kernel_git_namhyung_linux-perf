@@ -838,10 +838,10 @@ struct collector_arg {
 
 static void collect_hists(struct perf_top *top, struct hists *hists)
 {
-	int i, k;
+	unsigned int i, k;
 	struct perf_evsel *evsel;
 
-	for (i = 0, k = 0; i < top->evlist->nr_mmaps; i++) {
+	for (i = 0, k = 0; i < top->nr_threads; i++) {
 		evlist__for_each(top->evlist, evsel) {
 			struct hists *src_hists = &hists[k++];
 			struct hists *dst_hists = evsel__hists(evsel);
@@ -900,6 +900,7 @@ static int hist_iter__top_callback(struct hist_entry_iter *iter,
 
 struct reader_arg {
 	int			idx;
+	int			nr_idx;
 	struct perf_top		*top;
 	struct hists		*hists;
 	struct perf_top_stats	stats;
@@ -993,7 +994,7 @@ static void perf_event__process_sample(struct reader_arg *rarg,
 	addr_location__put(&al);
 }
 
-static void perf_top__mmap_read(struct reader_arg *rarg)
+static void perf_top__mmap_read_idx(struct reader_arg *rarg, int idx)
 {
 	struct perf_sample sample;
 	struct perf_evsel *evsel;
@@ -1001,7 +1002,6 @@ static void perf_top__mmap_read(struct reader_arg *rarg)
 	struct perf_session *session = top->session;
 	union perf_event *event;
 	struct machine *machine;
-	int idx = rarg->idx;
 	u8 origin;
 	int ret;
 
@@ -1065,6 +1065,14 @@ static void perf_top__mmap_read(struct reader_arg *rarg)
 next_event:
 		perf_evlist__mmap_consume(top->evlist, idx);
 	}
+}
+
+static void perf_top__mmap_read(struct reader_arg *rarg)
+{
+	int i;
+
+	for (i = 0; i < rarg->nr_idx; i++)
+		perf_top__mmap_read_idx(rarg, rarg->idx + i);
 }
 
 static void *mmap_read_worker(void *arg)
@@ -1160,7 +1168,8 @@ static int __cmd_top(struct perf_top *top)
 	struct reader_arg *rargs = NULL;
 	struct collector_arg carg;
 	int ret;
-	int i;
+	unsigned int i;
+	int idx, nr_idx, rem;
 
 	top->session = perf_session__new(NULL, false, NULL);
 	if (top->session == NULL)
@@ -1211,34 +1220,47 @@ static int __cmd_top(struct perf_top *top)
 	/* Wait for a minimal set of events before starting the snapshot */
 	perf_evlist__poll(top->evlist, 100);
 
+	if (top->nr_threads == 0)
+		top->nr_threads = top->evlist->nr_mmaps / 4 ?: 1;
+	if ((int)top->nr_threads > top->evlist->nr_mmaps)
+		top->nr_threads = top->evlist->nr_mmaps;
+
+	nr_idx = top->evlist->nr_mmaps / top->nr_threads;
+	rem = top->evlist->nr_mmaps % top->nr_threads;
+
 	ret = -1;
-	readers = calloc(sizeof(pthread_t), top->evlist->nr_mmaps);
+	readers = calloc(sizeof(pthread_t), top->nr_threads);
 	if (readers == NULL)
 		goto out_delete;
 
-	rargs = calloc(sizeof(*rargs), top->evlist->nr_mmaps);
+	rargs = calloc(sizeof(*rargs), top->nr_threads);
 	if (rargs == NULL)
 		goto out_free;
 
-	hists = calloc(sizeof(*hists), top->evlist->nr_mmaps * top->evlist->nr_entries);
+	hists = calloc(sizeof(*hists), top->nr_threads * top->evlist->nr_entries);
 	if (hists == NULL)
 		goto out_free;
 
-	for (i = 0; i < top->evlist->nr_mmaps * top->evlist->nr_entries; i++)
+	for (i = 0; i < top->nr_threads * top->evlist->nr_entries; i++)
 		__hists__init(&hists[i]);
 
-	for (i = 0; i < top->evlist->nr_mmaps; i++) {
+	for (i = 0, idx = 0; i < top->nr_threads; i++) {
 		struct reader_arg *rarg = &rargs[i];
 
-		rarg->idx = i;
 		rarg->top = top;
 		rarg->hists = &hists[i * top->evlist->nr_entries];
+
+		rarg->idx = idx;
+		rarg->nr_idx = nr_idx;
+		if (rem-- > 0)
+			rarg->nr_idx++;
+		idx += rarg->nr_idx;
 
 		perf_top__mmap_read(rarg);
 	}
 	collect_hists(top, hists);
 
-	for (i = 0; i < top->evlist->nr_mmaps; i++) {
+	for (i = 0; i < top->nr_threads; i++) {
 		if (pthread_create(&readers[i], NULL, mmap_read_worker, &rargs[i]))
 			goto out_join;
 	}
@@ -1259,7 +1281,7 @@ static int __cmd_top(struct perf_top *top)
 out_join:
 	pthread_join(ui_thread, NULL);
 	pthread_join(collector, NULL);
-	for (i = 0; i < top->evlist->nr_mmaps; i++) {
+	for (i = 0; i < top->nr_threads; i++) {
 		pthread_join(readers[i], NULL);
 	}
 
@@ -1458,6 +1480,7 @@ int cmd_top(int argc, const char **argv, const char *prefix __maybe_unused)
 	OPT_CALLBACK('j', "branch-filter", &opts->branch_stack,
 		     "branch filter mask", "branch stack filter modes",
 		     parse_branch_stack),
+	OPT_UINTEGER(0, "num-thread", &top.nr_threads, "number of thread to run"),
 	OPT_END()
 	};
 	const char * const top_usage[] = {
