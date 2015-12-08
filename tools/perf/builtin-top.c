@@ -916,7 +916,9 @@ static void perf_event__process_sample(struct reader_arg *rarg,
 
 	if (!machine && perf_guest) {
 		static struct intlist *seen;
+		static pthread_mutex_t seen_lock = PTHREAD_MUTEX_INITIALIZER;
 
+		pthread_mutex_lock(&seen_lock);
 		if (!seen)
 			seen = intlist__new(NULL);
 
@@ -925,6 +927,7 @@ static void perf_event__process_sample(struct reader_arg *rarg,
 				sample->pid);
 			intlist__add(seen, sample->pid);
 		}
+		pthread_mutex_unlock(&seen_lock);
 		return;
 	}
 
