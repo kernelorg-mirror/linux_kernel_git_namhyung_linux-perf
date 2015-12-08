@@ -993,9 +993,12 @@ int perf_event__preprocess_sample(const union perf_event *event,
 				  struct perf_sample *sample)
 {
 	u8 cpumode = event->header.misc & PERF_RECORD_MISC_CPUMODE_MASK;
-	struct thread *thread = machine__findnew_thread(machine, sample->pid,
-							sample->tid);
+	struct thread *thread = machine__find_thread(machine, sample->pid,
+						     sample->tid);
 
+	if (thread == NULL)
+		thread = machine__findnew_thread(machine, sample->pid,
+						 sample->tid);
 	if (thread == NULL)
 		return -1;
 
