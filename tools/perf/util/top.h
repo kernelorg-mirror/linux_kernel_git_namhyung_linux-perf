@@ -29,6 +29,7 @@ struct perf_top {
 	bool		   use_tui, use_stdio;
 	bool		   kptr_restrict_warned;
 	bool		   vmlinux_warned;
+	bool		   enomem_warned;
 	bool		   dump_symtab;
 	struct hist_entry  *sym_filter_entry;
 	struct perf_evsel  *sym_evsel;
