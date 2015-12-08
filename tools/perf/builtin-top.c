@@ -170,6 +170,53 @@ static void ui__warn_map_erange(struct map *map, struct symbol *sym, u64 ip)
 	map->erange_warned = true;
 }
 
+static void ui__warn_kptr_restrict(struct perf_top *top, struct addr_location *al)
+{
+	if (!top->kptr_restrict_warned) {
+		ui__warning(
+"Kernel address maps (/proc/{kallsyms,modules}) are restricted.\n\n"
+"Check /proc/sys/kernel/kptr_restrict.\n\n"
+"Kernel%s samples will not be resolved.\n",
+			  al->map && !RB_EMPTY_ROOT(&al->map->dso->symbols[MAP__FUNCTION]) ?
+			  " modules" : "");
+		if (use_browser <= 0)
+			sleep(5);
+		top->kptr_restrict_warned = true;
+	}
+}
+
+static void ui__warn_vmlinux(struct perf_top *top, struct addr_location *al)
+{
+	const char *msg = "Kernel samples will not be resolved.\n";
+	/*
+	 * As we do lazy loading of symtabs we only will know if the
+	 * specified vmlinux file is invalid when we actually have a
+	 * hit in kernel space and then try to load it. So if we get
+	 * here and there are _no_ symbols in the DSO backing the
+	 * kernel map, bail out.
+	 *
+	 * We may never get here, for instance, if we use -K/
+	 * --hide-kernel-symbols, even if the user specifies an
+	 * invalid --vmlinux ;-)
+	 */
+	if (!top->kptr_restrict_warned && !top->vmlinux_warned &&
+	    RB_EMPTY_ROOT(&al->map->dso->symbols[MAP__FUNCTION])) {
+		if (symbol_conf.vmlinux_name) {
+			char serr[256];
+			dso__strerror_load(al->map->dso, serr, sizeof(serr));
+			ui__warning("The %s file can't be used: %s\n%s",
+				    symbol_conf.vmlinux_name, serr, msg);
+		} else {
+			ui__warning("A vmlinux file was not found.\n%s",
+				    msg);
+		}
+
+		if (use_browser <= 0)
+			sleep(5);
+		top->vmlinux_warned = true;
+	}
+}
+
 static void perf_top__record_precise_ip(struct perf_top *top,
 					struct hist_entry *he,
 					int counter, u64 ip)
@@ -729,51 +776,11 @@ static void perf_event__process_sample(struct perf_tool *tool,
 	if (perf_event__preprocess_sample(event, machine, &al, sample) < 0)
 		return;
 
-	if (!top->kptr_restrict_warned &&
-	    symbol_conf.kptr_restrict &&
-	    al.cpumode == PERF_RECORD_MISC_KERNEL) {
-		ui__warning(
-"Kernel address maps (/proc/{kallsyms,modules}) are restricted.\n\n"
-"Check /proc/sys/kernel/kptr_restrict.\n\n"
-"Kernel%s samples will not be resolved.\n",
-			  al.map && !RB_EMPTY_ROOT(&al.map->dso->symbols[MAP__FUNCTION]) ?
-			  " modules" : "");
-		if (use_browser <= 0)
-			sleep(5);
-		top->kptr_restrict_warned = true;
-	}
+	if (symbol_conf.kptr_restrict && al.cpumode == PERF_RECORD_MISC_KERNEL)
+		ui__warn_kptr_restrict(top, &al);
 
-	if (al.sym == NULL) {
-		const char *msg = "Kernel samples will not be resolved.\n";
-		/*
-		 * As we do lazy loading of symtabs we only will know if the
-		 * specified vmlinux file is invalid when we actually have a
-		 * hit in kernel space and then try to load it. So if we get
-		 * here and there are _no_ symbols in the DSO backing the
-		 * kernel map, bail out.
-		 *
-		 * We may never get here, for instance, if we use -K/
-		 * --hide-kernel-symbols, even if the user specifies an
-		 * invalid --vmlinux ;-)
-		 */
-		if (!top->kptr_restrict_warned && !top->vmlinux_warned &&
-		    al.map == machine->vmlinux_maps[MAP__FUNCTION] &&
-		    RB_EMPTY_ROOT(&al.map->dso->symbols[MAP__FUNCTION])) {
-			if (symbol_conf.vmlinux_name) {
-				char serr[256];
-				dso__strerror_load(al.map->dso, serr, sizeof(serr));
-				ui__warning("The %s file can't be used: %s\n%s",
-					    symbol_conf.vmlinux_name, serr, msg);
-			} else {
-				ui__warning("A vmlinux file was not found.\n%s",
-					    msg);
-			}
-
-			if (use_browser <= 0)
-				sleep(5);
-			top->vmlinux_warned = true;
-		}
-	}
+	if (al.sym == NULL && al.map == machine->vmlinux_maps[MAP__FUNCTION])
+		ui__warn_vmlinux(top, &al);
 
 	if (al.sym == NULL || !al.sym->ignore) {
 		struct hists *hists = evsel__hists(evsel);
