@@ -902,7 +902,25 @@ struct reader_arg {
 	int			idx;
 	struct perf_top		*top;
 	struct hists		*hists;
+	struct perf_top_stats	stats;
 };
+
+static void perf_top_stats__add(struct perf_top_stats *dst,
+				struct perf_top_stats *src)
+{
+	static pthread_mutex_t stats_lock = PTHREAD_MUTEX_INITIALIZER;
+
+	pthread_mutex_lock(&stats_lock);
+
+	dst->samples              += src->samples;
+	dst->exact_samples        += src->exact_samples;
+	dst->kernel_samples       += src->kernel_samples;
+	dst->us_samples           += src->us_samples;
+	dst->guest_kernel_samples += src->guest_kernel_samples;
+	dst->guest_us_samples     += src->guest_us_samples;
+
+	pthread_mutex_unlock(&stats_lock);
+}
 
 static void perf_event__process_sample(struct reader_arg *rarg,
 				       const union perf_event *event,
@@ -938,7 +956,7 @@ static void perf_event__process_sample(struct reader_arg *rarg,
 	}
 
 	if (event->header.misc & PERF_RECORD_MISC_EXACT_IP)
-		top->exact_samples++;
+		rarg->stats.exact_samples++;
 
 	if (perf_event__preprocess_sample(event, machine, &al, sample) < 0)
 		return;
@@ -1000,28 +1018,28 @@ static void perf_top__mmap_read(struct reader_arg *rarg)
 		origin = event->header.misc & PERF_RECORD_MISC_CPUMODE_MASK;
 
 		if (event->header.type == PERF_RECORD_SAMPLE)
-			++top->samples;
+			++rarg->stats.samples;
 
 		switch (origin) {
 		case PERF_RECORD_MISC_USER:
-			++top->us_samples;
+			++rarg->stats.us_samples;
 			if (top->hide_user_symbols)
 				goto next_event;
 			machine = &session->machines.host;
 			break;
 		case PERF_RECORD_MISC_KERNEL:
-			++top->kernel_samples;
+			++rarg->stats.kernel_samples;
 			if (top->hide_kernel_symbols)
 				goto next_event;
 			machine = &session->machines.host;
 			break;
 		case PERF_RECORD_MISC_GUEST_KERNEL:
-			++top->guest_kernel_samples;
+			++rarg->stats.guest_kernel_samples;
 			machine = perf_session__find_machine(session,
 							     sample.pid);
 			break;
 		case PERF_RECORD_MISC_GUEST_USER:
-			++top->guest_us_samples;
+			++rarg->stats.guest_us_samples;
 			/*
 			 * TODO: we don't process guest user from host side
 			 * except simple counting.
@@ -1065,12 +1083,14 @@ static void *mmap_read_worker(void *arg)
 	}
 
 	while (!done) {
-		u64 hits = top->samples;
+		u64 hits = rarg->stats.samples;
 
 		perf_top__mmap_read(rarg);
 
-		if (hits == top->samples)
+		if (hits == rarg->stats.samples)
 			perf_evlist__poll(top->evlist, 100);
+		else
+			perf_top_stats__add(&top->stats, &rarg->stats);
 	}
 	return NULL;
 }

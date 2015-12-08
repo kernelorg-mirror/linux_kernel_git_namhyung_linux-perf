@@ -11,18 +11,22 @@ struct perf_evlist;
 struct perf_evsel;
 struct perf_session;
 
+struct perf_top_stats {
+	u64		   samples;
+	u64		   exact_samples;
+	u64		   kernel_samples, us_samples;
+	u64		   guest_kernel_samples, guest_us_samples;
+};
+
 struct perf_top {
 	struct perf_tool   tool;
 	struct perf_evlist *evlist;
 	struct record_opts record_opts;
+	struct perf_top_stats stats;
 	/*
 	 * Symbols will be added here in perf_event__process_sample and will
 	 * get out after decayed.
 	 */
-	u64		   samples;
-	u64		   kernel_samples, us_samples;
-	u64		   exact_samples;
-	u64		   guest_us_samples, guest_kernel_samples;
 	int		   print_entries, count_filter, delay_secs;
 	int		   max_stack;
 	bool		   hide_kernel_symbols, hide_user_symbols, zero;
