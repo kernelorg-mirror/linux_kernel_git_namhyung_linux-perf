@@ -141,7 +141,13 @@ void hists__inc_stats(struct hists *hists, struct hist_entry *h);
 void hists__inc_nr_events(struct hists *hists, u32 type);
 void hists__inc_nr_samples(struct hists *hists, bool filtered);
 void events_stats__inc(struct events_stats *stats, u32 type);
+void events_stats__add(struct events_stats *dst, struct events_stats *src);
 size_t events_stats__fprintf(struct events_stats *stats, FILE *fp);
+
+static inline void hists__add_stats(struct hists *dst, struct hists *src)
+{
+	events_stats__add(&dst->stats, &src->stats);
+}
 
 size_t hists__fprintf(struct hists *hists, bool show_header, int max_rows,
 		      int max_cols, float min_pcnt, FILE *fp);
