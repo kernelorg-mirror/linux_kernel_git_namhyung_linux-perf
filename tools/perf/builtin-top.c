@@ -143,68 +143,90 @@ static void __zero_source_counters(struct hist_entry *he)
 	symbol__annotate_zero_histograms(sym);
 }
 
-static void ui__warn_map_erange(struct perf_top *top __maybe_unused,
-				struct addr_location *al)
+static int perf_top__check_map_erange(struct perf_top *top __maybe_unused,
+				  struct addr_location *al)
+{
+	return al->map->erange_warned;
+}
+
+static void perf_top__warn_map_erange(struct perf_top *top __maybe_unused,
+				      struct addr_location *al)
 {
 	struct map *map = al->map;
 	struct symbol *sym = al->sym;
 	u64 ip = al->addr;
+	struct utsname uts;
+	int err = uname(&uts);
 
-	if (!map->erange_warned) {
-		struct utsname uts;
-		int err = uname(&uts);
-
-		ui__warning("Out of bounds address found:\n\n"
-			    "Addr:   %" PRIx64 "\n"
-			    "DSO:    %s %c\n"
-			    "Map:    %" PRIx64 "-%" PRIx64 "\n"
-			    "Symbol: %" PRIx64 "-%" PRIx64 " %c %s\n"
-			    "Arch:   %s\n"
-			    "Kernel: %s\n"
-			    "Tools:  %s\n\n"
-			    "Not all samples will be on the annotation output.\n\n"
-			    "Please report to linux-kernel@vger.kernel.org\n",
-			    ip, map->dso->long_name, dso__symtab_origin(map->dso),
-			    map->start, map->end, sym->start, sym->end,
-			    sym->binding == STB_GLOBAL ? 'g' :
-			    sym->binding == STB_LOCAL  ? 'l' : 'w', sym->name,
-			    err ? "[unknown]" : uts.machine,
-			    err ? "[unknown]" : uts.release, perf_version_string);
-		if (use_browser <= 0)
-			sleep(5);
-
-		map->erange_warned = true;
+	if (!map || !sym) {
+		ui__warning("Out of bounds address found\n");
+		return;
 	}
+
+	ui__warning("Out of bounds address found:\n\n"
+		    "Addr:   %" PRIx64 "\n"
+		    "DSO:    %s %c\n"
+		    "Map:    %" PRIx64 "-%" PRIx64 "\n"
+		    "Symbol: %" PRIx64 "-%" PRIx64 " %c %s\n"
+		    "Arch:   %s\n"
+		    "Kernel: %s\n"
+		    "Tools:  %s\n\n"
+		    "Not all samples will be on the annotation output.\n\n"
+		    "Please report to linux-kernel@vger.kernel.org\n",
+		    ip, map->dso->long_name, dso__symtab_origin(map->dso),
+		    map->start, map->end, sym->start, sym->end,
+		    sym->binding == STB_GLOBAL ? 'g' :
+		    sym->binding == STB_LOCAL  ? 'l' : 'w', sym->name,
+		    err ? "[unknown]" : uts.machine,
+		    err ? "[unknown]" : uts.release, perf_version_string);
+
+	map->erange_warned = true;
 }
 
-static void ui__warn_enomem(struct perf_top *top, struct addr_location *al)
+static int perf_top__check_enomem(struct perf_top *top,
+				  struct addr_location *al __maybe_unused)
 {
-	if (!top->enomem_warned) {
-		ui__warning("Not enough memory for annotating '%s' symbol!\n",
-			    al->sym->name);
+	return top->enomem_warned;
+}
+static void perf_top__warn_enomem(struct perf_top *top,
+				  struct addr_location *al)
+{
+	ui__warning("Not enough memory for annotating '%s' symbol!\n",
+		    al->sym ? al->sym->name : "unknown");
 
-		if (use_browser <= 0)
-			sleep(5);
-		top->enomem_warned = true;
-	}
+	top->enomem_warned = true;
 }
 
-static void ui__warn_kptr_restrict(struct perf_top *top, struct addr_location *al)
+static int perf_top__check_kptr_restrict(struct perf_top *top,
+					 struct addr_location *al __maybe_unused)
 {
-	if (!top->kptr_restrict_warned) {
-		ui__warning(
+	return top->kptr_restrict_warned;
+}
+
+static void perf_top__warn_kptr_restrict(struct perf_top *top,
+					 struct addr_location *al)
+{
+	ui__warning(
 "Kernel address maps (/proc/{kallsyms,modules}) are restricted.\n\n"
 "Check /proc/sys/kernel/kptr_restrict.\n\n"
 "Kernel%s samples will not be resolved.\n",
-			  al->map && !RB_EMPTY_ROOT(&al->map->dso->symbols[MAP__FUNCTION]) ?
-			  " modules" : "");
-		if (use_browser <= 0)
-			sleep(5);
-		top->kptr_restrict_warned = true;
-	}
+		    al->map && !RB_EMPTY_ROOT(&al->map->dso->symbols[MAP__FUNCTION]) ?
+		    " modules" : "");
+
+	top->kptr_restrict_warned = true;
 }
 
-static void ui__warn_vmlinux(struct perf_top *top, struct addr_location *al)
+static int perf_top__check_vmlinux(struct perf_top *top,
+				   struct addr_location *al)
+{
+	if (!RB_EMPTY_ROOT(&al->map->dso->symbols[MAP__FUNCTION]))
+		return true;
+
+	return top->kptr_restrict_warned || top->vmlinux_warned;
+}
+
+static void perf_top__warn_vmlinux(struct perf_top *top,
+				   struct addr_location *al)
 {
 	const char *msg = "Kernel samples will not be resolved.\n";
 	/*
@@ -218,22 +240,96 @@ static void ui__warn_vmlinux(struct perf_top *top, struct addr_location *al)
 	 * --hide-kernel-symbols, even if the user specifies an
 	 * invalid --vmlinux ;-)
 	 */
-	if (!top->kptr_restrict_warned && !top->vmlinux_warned &&
-	    RB_EMPTY_ROOT(&al->map->dso->symbols[MAP__FUNCTION])) {
-		if (symbol_conf.vmlinux_name) {
-			char serr[256];
-			dso__strerror_load(al->map->dso, serr, sizeof(serr));
-			ui__warning("The %s file can't be used: %s\n%s",
-				    symbol_conf.vmlinux_name, serr, msg);
-		} else {
-			ui__warning("A vmlinux file was not found.\n%s",
-				    msg);
-		}
-
-		if (use_browser <= 0)
-			sleep(5);
-		top->vmlinux_warned = true;
+	if (symbol_conf.vmlinux_name) {
+		char serr[256];
+		dso__strerror_load(al->map->dso, serr, sizeof(serr));
+		ui__warning("The %s file can't be used: %s\n%s",
+			    symbol_conf.vmlinux_name, serr, msg);
+	} else {
+		ui__warning("A vmlinux file was not found.\n%s", msg);
 	}
+	top->vmlinux_warned = true;
+}
+
+static struct addr_location warn_al;
+static pthread_mutex_t warn_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+static enum warn_request {
+	WARN_NONE,
+	WARN_ENOMEM,
+	WARN_ERANGE,
+	WARN_VMLINUX,
+	WARN_KPTR_RESTRICT,
+	WARN_MAX,
+} wreq = WARN_NONE;
+
+static struct perf_top__warning {
+	int (*check)(struct perf_top *top, struct addr_location *al);
+	void (*warn)(struct perf_top *top, struct addr_location *al);
+} warnings[] = {
+	{ NULL, NULL },
+
+#define W(item)  { perf_top__check_ ## item, perf_top__warn_ ## item }
+
+	W(enomem),
+	W(map_erange),
+	W(vmlinux),
+	W(kptr_restrict),
+
+#undef W
+};
+
+static void perf_top__request_warning(struct perf_top *top,
+				      struct addr_location *al,
+				      enum warn_request req)
+{
+	pthread_mutex_lock(&warn_mutex);
+
+	if (req > wreq && !warnings[req].check(top, al)) {
+		map__zput(warn_al.map);
+
+		wreq = req;
+		warn_al = *al;
+
+		map__get(warn_al.map);
+	}
+
+	pthread_mutex_unlock(&warn_mutex);
+}
+
+static void perf_top__show_warning(struct perf_top *top)
+{
+	enum warn_request req;
+	struct addr_location al;
+
+	pthread_mutex_lock(&warn_mutex);
+
+retry:
+	BUG_ON(wreq < 0 || wreq >= WARN_MAX);
+
+	req = wreq;
+	al = warn_al;
+	warn_al.map = NULL;
+
+	pthread_mutex_unlock(&warn_mutex);
+
+	if (req == WARN_NONE)
+		return;
+
+	warnings[req].warn(top, &al);
+	map__put(al.map);
+
+	if (use_browser <= 0)
+		sleep(5);
+
+	pthread_mutex_lock(&warn_mutex);
+
+	if (req < wreq)
+		goto retry;
+
+	wreq = WARN_NONE;
+
+	pthread_mutex_unlock(&warn_mutex);
 }
 
 static void perf_top__record_precise_ip(struct perf_top *top,
@@ -267,9 +363,9 @@ static void perf_top__record_precise_ip(struct perf_top *top,
 		pthread_mutex_unlock(&he->hists->lock);
 
 		if (err == -ERANGE)
-			ui__warn_map_erange(top, al);
+			perf_top__request_warning(top, al, WARN_ERANGE);
 		else if (err == -ENOMEM)
-			ui__warn_enomem(top, al);
+			perf_top__request_warning(top, al, WARN_ENOMEM);
 
 		pthread_mutex_lock(&he->hists->lock);
 	}
@@ -358,6 +454,8 @@ static void perf_top__print_sym_table(struct perf_top *top)
 	putchar('\n');
 	hists__fprintf(hists, false, top->print_entries - printed, win_width,
 		       top->min_percent, stdout);
+
+	perf_top__show_warning(top);
 }
 
 static void prompt_integer(int *target, const char *msg)
@@ -624,6 +722,8 @@ static void perf_top__sort_new_samples(void *arg)
 
 	hists__collapse_resort(hists, NULL);
 	hists__output_resort(hists, NULL);
+
+	perf_top__show_warning(t);
 }
 
 static void *display_thread_tui(void *arg)
@@ -794,10 +894,10 @@ static void perf_event__process_sample(struct perf_tool *tool,
 		return;
 
 	if (symbol_conf.kptr_restrict && al.cpumode == PERF_RECORD_MISC_KERNEL)
-		ui__warn_kptr_restrict(top, &al);
+		perf_top__request_warning(top, &al, WARN_KPTR_RESTRICT);
 
 	if (al.sym == NULL && al.map == machine->vmlinux_maps[MAP__FUNCTION])
-		ui__warn_vmlinux(top, &al);
+		perf_top__request_warning(top, &al, WARN_VMLINUX);
 
 	if (al.sym == NULL || !al.sym->ignore) {
 		struct hists *hists = evsel__hists(evsel);
