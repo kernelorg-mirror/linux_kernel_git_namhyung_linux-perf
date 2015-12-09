@@ -355,20 +355,10 @@ static void perf_top__record_precise_ip(struct perf_top *top,
 
 	pthread_mutex_unlock(&notes->lock);
 
-	if (unlikely(err)) {
-		/*
-		 * This function is now called with hists->lock held.
-		 * Release it before going to sleep.
-		 */
-		pthread_mutex_unlock(&he->hists->lock);
-
-		if (err == -ERANGE)
-			perf_top__request_warning(top, al, WARN_ERANGE);
-		else if (err == -ENOMEM)
-			perf_top__request_warning(top, al, WARN_ENOMEM);
-
-		pthread_mutex_lock(&he->hists->lock);
-	}
+	if (err == -ERANGE)
+		perf_top__request_warning(top, al, WARN_ERANGE);
+	else if (err == -ENOMEM)
+		perf_top__request_warning(top, al, WARN_ENOMEM);
 }
 
 static void perf_top__show_details(struct perf_top *top)
