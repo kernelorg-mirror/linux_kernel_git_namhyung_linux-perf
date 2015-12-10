@@ -1252,13 +1252,6 @@ int cmd_top(int argc, const char **argv, const char *prefix __maybe_unused)
 		goto out_delete_evlist;
 	}
 
-	if (top.use_stdio)
-		use_browser = 0;
-	else if (top.use_tui)
-		use_browser = 1;
-
-	setup_browser(false);
-
 	status = target__validate(target);
 	if (status) {
 		target__strerror(target, status, errbuf, BUFSIZ);
@@ -1325,6 +1318,13 @@ int cmd_top(int argc, const char **argv, const char *prefix __maybe_unused)
 		perf_top__update_print_entries(&top);
 		sigaction(SIGWINCH, &act, NULL);
 	}
+
+	if (top.use_stdio)
+		use_browser = 0;
+	else if (top.use_tui)
+		use_browser = 1;
+
+	setup_browser(false);
 
 	status = __cmd_top(&top);
 
