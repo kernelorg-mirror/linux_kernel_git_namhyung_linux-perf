@@ -4735,73 +4735,80 @@ static int is_printable_array(char *p, unsigned int len)
 	return 1;
 }
 
-static void print_event_fields(struct trace_seq *s, void *data,
-			       int size __maybe_unused,
-			       struct event_format *event)
+void print_event_field(struct trace_seq *s, void *data,
+		       struct format_field *field)
 {
-	struct format_field *field;
 	unsigned long long val;
 	unsigned int offset, len, i;
+	struct pevent *pevent = field->event->pevent;
+
+	if (field->flags & FIELD_IS_ARRAY) {
+		offset = field->offset;
+		len = field->size;
+		if (field->flags & FIELD_IS_DYNAMIC) {
+			val = pevent_read_number(pevent, data + offset, len);
+			offset = val;
+			len = offset >> 16;
+			offset &= 0xffff;
+		}
+		if (field->flags & FIELD_IS_STRING &&
+		    is_printable_array(data + offset, len)) {
+			trace_seq_printf(s, "%s", (char *)data + offset);
+		} else {
+			trace_seq_puts(s, "ARRAY[");
+			for (i = 0; i < len; i++) {
+				if (i)
+					trace_seq_puts(s, ", ");
+				trace_seq_printf(s, "%02x",
+						 *((unsigned char *)data + offset + i));
+			}
+			trace_seq_putc(s, ']');
+			field->flags &= ~FIELD_IS_STRING;
+		}
+	} else {
+		val = pevent_read_number(pevent, data + field->offset,
+					 field->size);
+		if (field->flags & FIELD_IS_POINTER) {
+			trace_seq_printf(s, "0x%llx", val);
+		} else if (field->flags & FIELD_IS_SIGNED) {
+			switch (field->size) {
+			case 4:
+				/*
+				 * If field is long then print it in hex.
+				 * A long usually stores pointers.
+				 */
+				if (field->flags & FIELD_IS_LONG)
+					trace_seq_printf(s, "0x%x", (int)val);
+				else
+					trace_seq_printf(s, "%d", (int)val);
+				break;
+			case 2:
+				trace_seq_printf(s, "%2d", (short)val);
+				break;
+			case 1:
+				trace_seq_printf(s, "%1d", (char)val);
+				break;
+			default:
+				trace_seq_printf(s, "%lld", val);
+			}
+		} else {
+			if (field->flags & FIELD_IS_LONG)
+				trace_seq_printf(s, "0x%llx", val);
+			else
+				trace_seq_printf(s, "%llu", val);
+		}
+	}
+}
+
+void print_event_fields(struct trace_seq *s, void *data,
+			int size __maybe_unused, struct event_format *event)
+{
+	struct format_field *field;
 
 	field = event->format.fields;
 	while (field) {
 		trace_seq_printf(s, " %s=", field->name);
-		if (field->flags & FIELD_IS_ARRAY) {
-			offset = field->offset;
-			len = field->size;
-			if (field->flags & FIELD_IS_DYNAMIC) {
-				val = pevent_read_number(event->pevent, data + offset, len);
-				offset = val;
-				len = offset >> 16;
-				offset &= 0xffff;
-			}
-			if (field->flags & FIELD_IS_STRING &&
-			    is_printable_array(data + offset, len)) {
-				trace_seq_printf(s, "%s", (char *)data + offset);
-			} else {
-				trace_seq_puts(s, "ARRAY[");
-				for (i = 0; i < len; i++) {
-					if (i)
-						trace_seq_puts(s, ", ");
-					trace_seq_printf(s, "%02x",
-							 *((unsigned char *)data + offset + i));
-				}
-				trace_seq_putc(s, ']');
-				field->flags &= ~FIELD_IS_STRING;
-			}
-		} else {
-			val = pevent_read_number(event->pevent, data + field->offset,
-						 field->size);
-			if (field->flags & FIELD_IS_POINTER) {
-				trace_seq_printf(s, "0x%llx", val);
-			} else if (field->flags & FIELD_IS_SIGNED) {
-				switch (field->size) {
-				case 4:
-					/*
-					 * If field is long then print it in hex.
-					 * A long usually stores pointers.
-					 */
-					if (field->flags & FIELD_IS_LONG)
-						trace_seq_printf(s, "0x%x", (int)val);
-					else
-						trace_seq_printf(s, "%d", (int)val);
-					break;
-				case 2:
-					trace_seq_printf(s, "%2d", (short)val);
-					break;
-				case 1:
-					trace_seq_printf(s, "%1d", (char)val);
-					break;
-				default:
-					trace_seq_printf(s, "%lld", val);
-				}
-			} else {
-				if (field->flags & FIELD_IS_LONG)
-					trace_seq_printf(s, "0x%llx", val);
-				else
-					trace_seq_printf(s, "%llu", val);
-			}
-		}
+		print_event_field(s, data, field);
 		field = field->next;
 	}
 }
