@@ -705,6 +705,8 @@ struct cmdline *pevent_data_pid_from_comm(struct pevent *pevent, const char *com
 					  struct cmdline *next);
 int pevent_cmdline_pid(struct pevent *pevent, struct cmdline *cmdline);
 
+void print_event_field(struct trace_seq *s, void *data,
+		       struct format_field *field);
 void pevent_event_info(struct trace_seq *s, struct event_format *event,
 		       struct pevent_record *record);
 int pevent_strerror(struct pevent *pevent, enum pevent_errno errnum,
