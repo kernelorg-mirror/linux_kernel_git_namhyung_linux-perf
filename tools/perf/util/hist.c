@@ -487,6 +487,8 @@ struct hist_entry *__hists__add_entry(struct hists *hists,
 		.branch_info = bi,
 		.mem_info = mi,
 		.transaction = sample->transaction,
+		.raw_data = sample->raw_data,
+		.raw_size = sample->raw_size,
 	};
 
 	return hists__findnew_entry(hists, &entry, al, sample_self);
@@ -801,6 +803,8 @@ iter_add_next_cumulative_entry(struct hist_entry_iter *iter,
 			.sym = al->sym,
 		},
 		.parent = iter->parent,
+		.raw_data = sample->raw_data,
+		.raw_size = sample->raw_size,
 	};
 	int i;
 	struct callchain_cursor cursor;
