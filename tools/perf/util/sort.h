@@ -97,6 +97,7 @@ struct hist_entry {
 
 	/* We are added by hists__add_dummy_entry. */
 	bool			dummy;
+	bool			dynlen_updated;
 
 	char			level;
 	u8			filtered;
