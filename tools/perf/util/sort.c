@@ -1560,6 +1560,56 @@ static int hde_width(struct hpp_dynamic_entry *hde)
 	return hde->hpp.len;
 }
 
+static void update_dynamic_len(struct hpp_dynamic_entry *hde,
+			       struct hist_entry *he)
+{
+	char *str, *pos;
+	struct format_field *field = hde->field;
+	struct pevent_record rec = {
+		.cpu  = he->cpu,
+		.data = he->raw_data,
+		.size = he->raw_size,
+	};
+	size_t namelen;
+	bool last = false;
+
+	/* parse pretty print result and update max length */
+	if (!he->trace_output) {
+		struct trace_seq seq;
+
+		trace_seq_init(&seq);
+		pevent_event_info(&seq, field->event, &rec);
+		he->trace_output = seq.buffer;
+	}
+
+	namelen = strlen(field->name);
+	str = he->trace_output;
+
+	while (str) {
+		pos = strchr(str, ' ');
+		if (pos == NULL) {
+			last = true;
+			pos = str + strlen(str);
+		}
+
+		if (!strncmp(str, field->name, namelen)) {
+			size_t len;
+
+			str += namelen + 1;
+			len = pos - str;
+
+			if (len > hde->dynamic_len)
+				hde->dynamic_len = len;
+			break;
+		}
+
+		if (last)
+			str = NULL;
+		else
+			str = pos + 1;
+	}
+}
+
 static int __sort__hde_header(struct perf_hpp_fmt *fmt, struct perf_hpp *hpp,
 			      struct perf_evsel *evsel __maybe_unused)
 {
@@ -1594,7 +1644,10 @@ static int __sort__hde_entry(struct perf_hpp_fmt *fmt, struct perf_hpp *hpp,
 {
 	struct hpp_dynamic_entry *hde;
 	size_t len = fmt->user_len;
-	struct trace_seq seq;
+	char *str, *pos;
+	struct format_field *field;
+	size_t namelen;
+	bool last = false;
 	int ret;
 
 	hde = container_of(fmt, struct hpp_dynamic_entry, hpp);
@@ -1605,10 +1658,43 @@ static int __sort__hde_entry(struct perf_hpp_fmt *fmt, struct perf_hpp *hpp,
 	if (hists_to_evsel(he->hists) != hde->evsel)
 		return scnprintf(hpp->buf, hpp->size, "%*.*s", len, len, "N/A");
 
-	trace_seq_init(&seq);
-	print_event_field(&seq, he->raw_data, hde->field);
-	ret = scnprintf(hpp->buf, hpp->size, "%*.*s", len, len, seq.buffer);
-	trace_seq_destroy(&seq);
+	field = hde->field;
+
+	namelen = strlen(field->name);
+	str = he->trace_output;
+
+	while (str) {
+		pos = strchr(str, ' ');
+		if (pos == NULL) {
+			last = true;
+			pos = str + strlen(str);
+		}
+
+		if (!strncmp(str, field->name, namelen)) {
+			str += namelen + 1;
+			str = strndup(str, pos - str);
+
+			if (str == NULL)
+				return scnprintf(hpp->buf, hpp->size,
+						 "%*.*s", len, len, "ERROR");
+			break;
+		}
+
+		if (last)
+			str = NULL;
+		else
+			str = pos + 1;
+	}
+
+	if (str == NULL) {
+		struct trace_seq seq;
+		trace_seq_init(&seq);
+		print_event_field(&seq, he->raw_data, hde->field);
+		str = seq.buffer;
+	}
+
+	ret = scnprintf(hpp->buf, hpp->size, "%*.*s", len, len, str);
+	free(str);
 	return ret;
 }
 
@@ -1638,6 +1724,9 @@ static int64_t __sort__hde_cmp(struct perf_hpp_fmt *fmt,
 	} else {
 		offset = field->offset;
 		size = field->size;
+
+		update_dynamic_len(hde, a);
+		update_dynamic_len(hde, b);
 	}
 
 	return memcmp(a->raw_data + offset, b->raw_data + offset, size);

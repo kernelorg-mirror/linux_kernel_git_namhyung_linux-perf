@@ -978,6 +978,7 @@ void hist_entry__delete(struct hist_entry *he)
 	if (he->srcfile && he->srcfile[0])
 		free(he->srcfile);
 	free_callchain(he->callchain);
+	free(he->trace_output);
 	free(he);
 }
 
