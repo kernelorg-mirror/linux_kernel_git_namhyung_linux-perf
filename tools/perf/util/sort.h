@@ -125,6 +125,7 @@ struct hist_entry {
 	struct mem_info		*mem_info;
 	void			*raw_data;
 	u32			raw_size;
+	void			*trace_output;
 	struct callchain_root	callchain[0]; /* must be last member */
 };
 
@@ -183,6 +184,7 @@ enum sort_type {
 	SORT_LOCAL_WEIGHT,
 	SORT_GLOBAL_WEIGHT,
 	SORT_TRANSACTION,
+	SORT_TRACE,
 
 	/* branch stack specific sort keys */
 	__SORT_BRANCH_STACK,
