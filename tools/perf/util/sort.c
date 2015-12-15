@@ -15,6 +15,7 @@ const char	default_branch_sort_order[] = "comm,dso_from,symbol_from,symbol_to,cy
 const char	default_mem_sort_order[] = "local_weight,mem,sym,dso,symbol_daddr,dso_daddr,snoop,tlb,locked";
 const char	default_top_sort_order[] = "dso,symbol";
 const char	default_diff_sort_order[] = "dso,symbol";
+const char	default_tracepoint_sort_order[] = "trace";
 const char	*sort_order;
 const char	*field_order;
 regex_t		ignore_callees_regex;
@@ -2167,7 +2168,7 @@ static int sort_dimension__add(const char *tok,
 	return -ESRCH;
 }
 
-static const char *get_default_sort_order(void)
+static const char *get_default_sort_order(struct perf_evlist *evlist)
 {
 	const char *default_sort_orders[] = {
 		default_sort_order,
@@ -2175,14 +2176,30 @@ static const char *get_default_sort_order(void)
 		default_mem_sort_order,
 		default_top_sort_order,
 		default_diff_sort_order,
+		default_tracepoint_sort_order,
 	};
+	bool use_trace = true;
+	struct perf_evsel *evsel;
 
 	BUG_ON(sort__mode >= ARRAY_SIZE(default_sort_orders));
+
+	evlist__for_each(evlist, evsel) {
+		if (evsel->attr.type != PERF_TYPE_TRACEPOINT) {
+			use_trace = false;
+			break;
+		}
+	}
+
+	if (use_trace) {
+		sort__mode = SORT_MODE__TRACEPOINT;
+		if (symbol_conf.raw_trace)
+			return "trace_fields";
+	}
 
 	return default_sort_orders[sort__mode];
 }
 
-static int setup_sort_order(void)
+static int setup_sort_order(struct perf_evlist *evlist)
 {
 	char *new_sort_order;
 
@@ -2203,7 +2220,7 @@ static int setup_sort_order(void)
 	 * because it's checked over the rest of the code.
 	 */
 	if (asprintf(&new_sort_order, "%s,%s",
-		     get_default_sort_order(), sort_order + 1) < 0) {
+		     get_default_sort_order(evlist), sort_order + 1) < 0) {
 		error("Not enough memory to set up --sort");
 		return -ENOMEM;
 	}
@@ -2218,7 +2235,7 @@ static int __setup_sorting(struct perf_evlist *evlist)
 	const char *sort_keys;
 	int ret = 0;
 
-	ret = setup_sort_order();
+	ret = setup_sort_order(evlist);
 	if (ret)
 		return ret;
 
@@ -2232,7 +2249,7 @@ static int __setup_sorting(struct perf_evlist *evlist)
 			return 0;
 		}
 
-		sort_keys = get_default_sort_order();
+		sort_keys = get_default_sort_order(evlist);
 	}
 
 	str = strdup(sort_keys);
