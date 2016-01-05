@@ -1955,6 +1955,9 @@ static int add_all_dynamic_fields(struct perf_evlist *evlist, bool raw_trace)
 	struct perf_evsel *evsel;
 
 	evlist__for_each(evlist, evsel) {
+		if (evsel->attr.type != PERF_TYPE_TRACEPOINT)
+			continue;
+
 		ret = add_evsel_fields(evsel, raw_trace);
 		if (ret < 0)
 			return ret;
