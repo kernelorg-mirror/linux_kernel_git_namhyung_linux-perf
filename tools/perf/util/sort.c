@@ -1908,7 +1908,7 @@ static struct perf_evsel *find_evsel(struct perf_evlist *evlist, char *event_nam
 
 static int __dynamic_dimension__add(struct perf_evsel *evsel,
 				    struct format_field *field,
-				    bool raw_trace)
+				    bool raw_trace, bool is_sort_key)
 {
 	struct hpp_dynamic_entry *hde;
 
@@ -1918,18 +1918,24 @@ static int __dynamic_dimension__add(struct perf_evsel *evsel,
 
 	hde->raw_trace = raw_trace;
 
-	perf_hpp__register_sort_field(&hde->hpp);
+	if (is_sort_key)
+		perf_hpp__register_sort_field(&hde->hpp);
+	else
+		perf_hpp__column_register(&hde->hpp);
+
 	return 0;
 }
 
-static int add_evsel_fields(struct perf_evsel *evsel, bool raw_trace)
+static int add_evsel_fields(struct perf_evsel *evsel, bool raw_trace,
+			    bool is_sort_key)
 {
 	int ret;
 	struct format_field *field;
 
 	field = evsel->tp_format->format.fields;
 	while (field) {
-		ret = __dynamic_dimension__add(evsel, field, raw_trace);
+		ret = __dynamic_dimension__add(evsel, field, raw_trace,
+					       is_sort_key);
 		if (ret < 0)
 			return ret;
 
@@ -1938,7 +1944,8 @@ static int add_evsel_fields(struct perf_evsel *evsel, bool raw_trace)
 	return 0;
 }
 
-static int add_all_dynamic_fields(struct perf_evlist *evlist, bool raw_trace)
+static int add_all_dynamic_fields(struct perf_evlist *evlist, bool raw_trace,
+				  bool is_sort_key)
 {
 	int ret;
 	struct perf_evsel *evsel;
@@ -1947,7 +1954,7 @@ static int add_all_dynamic_fields(struct perf_evlist *evlist, bool raw_trace)
 		if (evsel->attr.type != PERF_TYPE_TRACEPOINT)
 			continue;
 
-		ret = add_evsel_fields(evsel, raw_trace);
+		ret = add_evsel_fields(evsel, raw_trace, is_sort_key);
 		if (ret < 0)
 			return ret;
 	}
@@ -1955,7 +1962,8 @@ static int add_all_dynamic_fields(struct perf_evlist *evlist, bool raw_trace)
 }
 
 static int add_all_matching_fields(struct perf_evlist *evlist,
-				   char *field_name, bool raw_trace)
+				   char *field_name, bool raw_trace,
+				   bool is_sort_key)
 {
 	int ret = -ESRCH;
 	struct perf_evsel *evsel;
@@ -1969,14 +1977,16 @@ static int add_all_matching_fields(struct perf_evlist *evlist,
 		if (field == NULL)
 			continue;
 
-		ret = __dynamic_dimension__add(evsel, field, raw_trace);
+		ret = __dynamic_dimension__add(evsel, field, raw_trace,
+					       is_sort_key);
 		if (ret < 0)
 			break;
 	}
 	return ret;
 }
 
-static int add_dynamic_entry(struct perf_evlist *evlist, const char *tok)
+static int add_dynamic_entry(struct perf_evlist *evlist, const char *tok,
+			     bool is_sort_key)
 {
 	char *str, *event_name, *field_name, *opt_name;
 	struct perf_evsel *evsel;
@@ -2006,12 +2016,13 @@ static int add_dynamic_entry(struct perf_evlist *evlist, const char *tok)
 	}
 
 	if (!strcmp(field_name, "trace_fields")) {
-		ret = add_all_dynamic_fields(evlist, raw_trace);
+		ret = add_all_dynamic_fields(evlist, raw_trace, is_sort_key);
 		goto out;
 	}
 
 	if (event_name == NULL) {
-		ret = add_all_matching_fields(evlist, field_name, raw_trace);
+		ret = add_all_matching_fields(evlist, field_name, raw_trace,
+					      is_sort_key);
 		goto out;
 	}
 
@@ -2029,7 +2040,7 @@ static int add_dynamic_entry(struct perf_evlist *evlist, const char *tok)
 	}
 
 	if (!strcmp(field_name, "*")) {
-		ret = add_evsel_fields(evsel, raw_trace);
+		ret = add_evsel_fields(evsel, raw_trace, is_sort_key);
 	} else {
 		field = pevent_find_any_field(evsel->tp_format, field_name);
 		if (field == NULL) {
@@ -2038,7 +2049,8 @@ static int add_dynamic_entry(struct perf_evlist *evlist, const char *tok)
 			return -ENOENT;
 		}
 
-		ret = __dynamic_dimension__add(evsel, field, raw_trace);
+		ret = __dynamic_dimension__add(evsel, field, raw_trace,
+					       is_sort_key);
 	}
 
 out:
@@ -2182,7 +2194,7 @@ static int sort_dimension__add(const char *tok,
 		return 0;
 	}
 
-	if (!add_dynamic_entry(evlist, tok))
+	if (!add_dynamic_entry(evlist, tok, true))
 		return 0;
 
 	return -ESRCH;
@@ -2387,7 +2399,7 @@ void sort__setup_elide(FILE *output)
 	}
 }
 
-static int output_field_add(char *tok)
+static int output_field_add(struct perf_evlist *evlist, char *tok)
 {
 	unsigned int i;
 
@@ -2427,6 +2439,9 @@ static int output_field_add(char *tok)
 		return __sort_dimension__add_output(sd);
 	}
 
+	if (!add_dynamic_entry(evlist, tok, false))
+		return 0;
+
 	return -ESRCH;
 }
 
@@ -2452,7 +2467,7 @@ bool is_strict_order(const char *order)
 	return order && (*order != '+');
 }
 
-static int __setup_output_field(void)
+static int __setup_output_field(struct perf_evlist *evlist)
 {
 	char *tmp, *tok, *str, *strp;
 	int ret = -EINVAL;
@@ -2476,7 +2491,7 @@ static int __setup_output_field(void)
 
 	for (tok = strtok_r(strp, ", ", &tmp);
 			tok; tok = strtok_r(NULL, ", ", &tmp)) {
-		ret = output_field_add(tok);
+		ret = output_field_add(evlist, tok);
 		if (ret == -EINVAL) {
 			error("Invalid --fields key: `%s'", tok);
 			break;
@@ -2513,7 +2528,7 @@ int setup_sorting(struct perf_evlist *evlist)
 	if (sort__mode != SORT_MODE__DIFF)
 		perf_hpp__init();
 
-	err = __setup_output_field();
+	err = __setup_output_field(evlist);
 	if (err < 0)
 		return err;
 
