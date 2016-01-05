@@ -49,6 +49,7 @@ int cmd_evlist(int argc, const char **argv, const char *prefix __maybe_unused)
 	OPT_BOOLEAN('g', "group", &details.event_group,
 		    "Show event group information"),
 	OPT_BOOLEAN('f', "force", &details.force, "don't complain, do it"),
+	OPT_BOOLEAN('T', "trace", &details.trace, "Show tracepoint fields"),
 	OPT_END()
 	};
 	const char * const evlist_usage[] = {
