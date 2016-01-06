@@ -1798,6 +1798,30 @@ static int64_t __sort__hde_cmp(struct perf_hpp_fmt *fmt,
 	return memcmp(b->raw_data + offset, a->raw_data + offset, size);
 }
 
+static int64_t __sort__hde_sort(struct perf_hpp_fmt *fmt,
+				struct hist_entry *a, struct hist_entry *b)
+{
+	struct hpp_dynamic_entry *hde;
+	struct format_field *field;
+	unsigned offset, size;
+
+	hde = container_of(fmt, struct hpp_dynamic_entry, hpp);
+
+	field = hde->field;
+	if (field->flags & FIELD_IS_DYNAMIC) {
+		unsigned long long dyn;
+
+		pevent_read_number_field(field, a->raw_data, &dyn);
+		offset = dyn & 0xffff;
+		size = (dyn >> 16) & 0xffff;
+	} else {
+		offset = field->offset;
+		size = field->size;
+	}
+
+	return memcmp(b->raw_data + offset, a->raw_data + offset, size);
+}
+
 bool perf_hpp__is_dynamic_entry(struct perf_hpp_fmt *fmt)
 {
 	return fmt->cmp == __sort__hde_cmp;
@@ -1826,7 +1850,7 @@ __alloc_dynamic_entry(struct perf_evsel *evsel, struct format_field *field)
 
 	hde->hpp.cmp = __sort__hde_cmp;
 	hde->hpp.collapse = __sort__hde_cmp;
-	hde->hpp.sort = __sort__hde_cmp;
+	hde->hpp.sort = __sort__hde_sort;
 
 	INIT_LIST_HEAD(&hde->hpp.list);
 	INIT_LIST_HEAD(&hde->hpp.sort_list);
