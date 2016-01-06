@@ -1804,6 +1804,9 @@ static int64_t __sort__hde_sort(struct perf_hpp_fmt *fmt,
 	struct hpp_dynamic_entry *hde;
 	struct format_field *field;
 	unsigned offset, size;
+	int64_t *a64, *b64;
+	int32_t *a32, *b32;
+	int16_t *a16, *b16;
 
 	hde = container_of(fmt, struct hpp_dynamic_entry, hpp);
 
@@ -1819,7 +1822,25 @@ static int64_t __sort__hde_sort(struct perf_hpp_fmt *fmt,
 		size = field->size;
 	}
 
-	return memcmp(b->raw_data + offset, a->raw_data + offset, size);
+	if (field->flags & FIELD_IS_STRING)
+		return strcmp(b->raw_data + offset, a->raw_data + offset);
+
+	switch (size) {
+	case 8:
+		a64 = a->raw_data + offset;
+		b64 = b->raw_data + offset;
+		return *b64 - *a64;
+	case 4:
+		a32 = a->raw_data + offset;
+		b32 = b->raw_data + offset;
+		return *b32 - *a32;
+	case 2:
+		a16 = a->raw_data + offset;
+		b16 = b->raw_data + offset;
+		return *b16 - *a16;
+	default:
+		return memcmp(b->raw_data + offset, a->raw_data + offset, size);
+	}
 }
 
 bool perf_hpp__is_dynamic_entry(struct perf_hpp_fmt *fmt)
