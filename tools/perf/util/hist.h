@@ -416,4 +416,8 @@ struct rb_node *rb_hierarchy_last(struct rb_node *node);
 struct rb_node *rb_hierarchy_next(struct rb_node *node);
 struct rb_node *rb_hierarchy_prev(struct rb_node *node);
 
+#define HIERARCHY_INDENT  3
+
+int perf_hpp__count_sort_keys(void);
+
 #endif	/* __PERF_HIST_H */
