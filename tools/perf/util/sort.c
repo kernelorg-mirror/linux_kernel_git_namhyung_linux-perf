@@ -89,10 +89,21 @@ static int hist_entry__thread_snprintf(struct hist_entry *he, char *bf,
 			       width, width, comm ?: "");
 }
 
+static int hist_entry__thread_filter(struct hist_entry *he, int type, const void *arg)
+{
+	const struct thread *th = arg;
+
+	if (type != HIST_FILTER__THREAD)
+		return -1;
+
+	return th && he->thread != th;
+}
+
 struct sort_entry sort_thread = {
 	.se_header	= "  Pid:Command",
 	.se_cmp		= sort__thread_cmp,
 	.se_snprintf	= hist_entry__thread_snprintf,
+	.se_filter	= hist_entry__thread_filter,
 	.se_width_idx	= HISTC_THREAD,
 };
 
@@ -130,6 +141,7 @@ struct sort_entry sort_comm = {
 	.se_collapse	= sort__comm_collapse,
 	.se_sort	= sort__comm_sort,
 	.se_snprintf	= hist_entry__comm_snprintf,
+	.se_filter	= hist_entry__thread_filter,
 	.se_width_idx	= HISTC_COMM,
 };
 
@@ -179,10 +191,21 @@ static int hist_entry__dso_snprintf(struct hist_entry *he, char *bf,
 	return _hist_entry__dso_snprintf(he->ms.map, bf, size, width);
 }
 
+static int hist_entry__dso_filter(struct hist_entry *he, int type, const void *arg)
+{
+	const struct dso *dso = arg;
+
+	if (type != HIST_FILTER__DSO)
+		return -1;
+
+	return dso && (!he->ms.map || he->ms.map->dso != dso);
+}
+
 struct sort_entry sort_dso = {
 	.se_header	= "Shared Object",
 	.se_cmp		= sort__dso_cmp,
 	.se_snprintf	= hist_entry__dso_snprintf,
+	.se_filter	= hist_entry__dso_filter,
 	.se_width_idx	= HISTC_DSO,
 };
 
@@ -276,11 +299,22 @@ static int hist_entry__sym_snprintf(struct hist_entry *he, char *bf,
 					 he->level, bf, size, width);
 }
 
+static int hist_entry__sym_filter(struct hist_entry *he, int type, const void *arg)
+{
+	const char *sym = arg;
+
+	if (type != HIST_FILTER__SYMBOL)
+		return -1;
+
+	return sym && (!he->ms.sym || !strstr(he->ms.sym->name, sym));
+}
+
 struct sort_entry sort_sym = {
 	.se_header	= "Symbol",
 	.se_cmp		= sort__sym_cmp,
 	.se_sort	= sort__sym_sort,
 	.se_snprintf	= hist_entry__sym_snprintf,
+	.se_filter	= hist_entry__sym_filter,
 	.se_width_idx	= HISTC_SYMBOL,
 };
 
@@ -441,10 +475,21 @@ static int hist_entry__socket_snprintf(struct hist_entry *he, char *bf,
 	return repsep_snprintf(bf, size, "%*.*d", width, width-3, he->socket);
 }
 
+static int hist_entry__socket_filter(struct hist_entry *he, int type, const void *arg)
+{
+	int socket = *(const int *)arg;
+
+	if (type != HIST_FILTER__SOCKET)
+		return -1;
+
+	return socket >= 0 && he->socket != socket;
+}
+
 struct sort_entry sort_socket = {
 	.se_header      = "Socket",
 	.se_cmp	        = sort__socket_cmp,
 	.se_snprintf    = hist_entry__socket_snprintf,
+	.se_filter      = hist_entry__socket_filter,
 	.se_width_idx	= HISTC_SOCKET,
 };
 
@@ -534,6 +579,18 @@ static int hist_entry__dso_from_snprintf(struct hist_entry *he, char *bf,
 		return repsep_snprintf(bf, size, "%-*.*s", width, width, "N/A");
 }
 
+static int hist_entry__dso_from_filter(struct hist_entry *he, int type,
+				       const void *arg)
+{
+	const struct dso *dso = arg;
+
+	if (type != HIST_FILTER__DSO)
+		return -1;
+
+	return dso && (!he->branch_info || !he->branch_info->from.map ||
+		       he->branch_info->from.map->dso != dso);
+}
+
 static int64_t
 sort__dso_to_cmp(struct hist_entry *left, struct hist_entry *right)
 {
@@ -552,6 +609,18 @@ static int hist_entry__dso_to_snprintf(struct hist_entry *he, char *bf,
 						 bf, size, width);
 	else
 		return repsep_snprintf(bf, size, "%-*.*s", width, width, "N/A");
+}
+
+static int hist_entry__dso_to_filter(struct hist_entry *he, int type,
+				     const void *arg)
+{
+	const struct dso *dso = arg;
+
+	if (type != HIST_FILTER__DSO)
+		return -1;
+
+	return dso && (!he->branch_info || !he->branch_info->to.map ||
+		       he->branch_info->to.map->dso != dso);
 }
 
 static int64_t
@@ -615,10 +684,35 @@ static int hist_entry__sym_to_snprintf(struct hist_entry *he, char *bf,
 	return repsep_snprintf(bf, size, "%-*.*s", width, width, "N/A");
 }
 
+static int hist_entry__sym_from_filter(struct hist_entry *he, int type,
+				       const void *arg)
+{
+	const char *sym = arg;
+
+	if (type != HIST_FILTER__SYMBOL)
+		return -1;
+
+	return sym && !(he->branch_info && he->branch_info->from.sym &&
+			strstr(he->branch_info->from.sym->name, sym));
+}
+
+static int hist_entry__sym_to_filter(struct hist_entry *he, int type,
+				       const void *arg)
+{
+	const char *sym = arg;
+
+	if (type != HIST_FILTER__SYMBOL)
+		return -1;
+
+	return sym && !(he->branch_info && he->branch_info->to.sym &&
+		        strstr(he->branch_info->to.sym->name, sym));
+}
+
 struct sort_entry sort_dso_from = {
 	.se_header	= "Source Shared Object",
 	.se_cmp		= sort__dso_from_cmp,
 	.se_snprintf	= hist_entry__dso_from_snprintf,
+	.se_filter	= hist_entry__dso_from_filter,
 	.se_width_idx	= HISTC_DSO_FROM,
 };
 
@@ -626,6 +720,7 @@ struct sort_entry sort_dso_to = {
 	.se_header	= "Target Shared Object",
 	.se_cmp		= sort__dso_to_cmp,
 	.se_snprintf	= hist_entry__dso_to_snprintf,
+	.se_filter	= hist_entry__dso_to_filter,
 	.se_width_idx	= HISTC_DSO_TO,
 };
 
@@ -633,6 +728,7 @@ struct sort_entry sort_sym_from = {
 	.se_header	= "Source Symbol",
 	.se_cmp		= sort__sym_from_cmp,
 	.se_snprintf	= hist_entry__sym_from_snprintf,
+	.se_filter	= hist_entry__sym_from_filter,
 	.se_width_idx	= HISTC_SYMBOL_FROM,
 };
 
@@ -640,6 +736,7 @@ struct sort_entry sort_sym_to = {
 	.se_header	= "Target Symbol",
 	.se_cmp		= sort__sym_to_cmp,
 	.se_snprintf	= hist_entry__sym_to_snprintf,
+	.se_filter	= hist_entry__sym_to_filter,
 	.se_width_idx	= HISTC_SYMBOL_TO,
 };
 
@@ -1604,6 +1701,22 @@ static struct perf_hpp_fmt *__hpp_dimension__alloc_hpp(struct hpp_dimension *hd)
 	}
 
 	return fmt;
+}
+
+int hist_entry__filter(struct hist_entry *he, int type, const void *arg)
+{
+	struct perf_hpp_fmt *fmt;
+	struct hpp_sort_entry *hse;
+
+	fmt = he->fmt;
+	if (fmt == NULL || !perf_hpp__is_sort_entry(fmt))
+		return -1;
+
+	hse = container_of(fmt, struct hpp_sort_entry, hpp);
+	if (hse->se->se_filter == NULL)
+		return -1;
+
+	return hse->se->se_filter(he, type, arg);
 }
 
 static int __sort_dimension__add_hpp_sort(struct sort_dimension *sd)
