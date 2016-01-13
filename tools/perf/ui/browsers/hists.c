@@ -2263,10 +2263,7 @@ static int perf_evsel__hists_browse(struct perf_evsel *evsel, int nr_events,
 			continue;
 		}
 
-		if (!sort__has_sym)
-			goto add_exit_option;
-
-		if (browser->selection == NULL)
+		if (!sort__has_sym || browser->selection == NULL)
 			goto skip_annotation;
 
 		if (sort__mode == SORT_MODE__BRANCH) {
@@ -2294,23 +2291,33 @@ static int perf_evsel__hists_browse(struct perf_evsel *evsel, int nr_events,
 						       browser->selection->sym);
 		}
 skip_annotation:
-		nr_options += add_thread_opt(browser, &actions[nr_options],
-					     &options[nr_options], thread);
-		nr_options += add_dso_opt(browser, &actions[nr_options],
-					  &options[nr_options], map);
-		nr_options += add_map_opt(browser, &actions[nr_options],
-					  &options[nr_options],
-					  browser->selection ?
-						browser->selection->map : NULL);
-		nr_options += add_socket_opt(browser, &actions[nr_options],
-					     &options[nr_options],
-					     socked_id);
+		if (sort__has_thread) {
+			nr_options += add_thread_opt(browser, &actions[nr_options],
+						     &options[nr_options], thread);
+		}
+		if (sort__has_dso) {
+			nr_options += add_dso_opt(browser, &actions[nr_options],
+						  &options[nr_options], map);
+			nr_options += add_map_opt(browser, &actions[nr_options],
+						  &options[nr_options],
+						  browser->selection ?
+						  browser->selection->map : NULL);
+		}
+		if (sort__has_socket) {
+			nr_options += add_socket_opt(browser, &actions[nr_options],
+						     &options[nr_options],
+						     socked_id);
+		}
+
 		/* perf script support */
 		if (browser->he_selection) {
-			nr_options += add_script_opt(browser,
-						     &actions[nr_options],
-						     &options[nr_options],
-						     thread, NULL);
+			if (sort__has_thread) {
+				nr_options += add_script_opt(browser,
+							     &actions[nr_options],
+							     &options[nr_options],
+							     thread, NULL);
+			}
+
 			/*
 			 * Note that browser->selection != NULL
 			 * when browser->he_selection is not NULL,
@@ -2320,16 +2327,17 @@ skip_annotation:
 			 *
 			 * See hist_browser__show_entry.
 			 */
-			nr_options += add_script_opt(browser,
+			if (sort__has_sym && browser->selection->sym) {
+				nr_options += add_script_opt(browser,
 						     &actions[nr_options],
 						     &options[nr_options],
 						     NULL, browser->selection->sym);
+			}
 		}
 		nr_options += add_script_opt(browser, &actions[nr_options],
 					     &options[nr_options], NULL, NULL);
 		nr_options += add_switch_opt(browser, &actions[nr_options],
 					     &options[nr_options]);
-add_exit_option:
 		nr_options += add_exit_opt(browser, &actions[nr_options],
 					   &options[nr_options]);
 

@@ -21,6 +21,7 @@ const char	*field_order;
 regex_t		ignore_callees_regex;
 int		have_ignore_callees = 0;
 int		sort__need_collapse = 0;
+int		sort__has_thread = 0;
 int		sort__has_parent = 0;
 int		sort__has_sym = 0;
 int		sort__has_dso = 0;
@@ -2249,6 +2250,8 @@ static int sort_dimension__add(const char *tok,
 			sort__has_dso = 1;
 		} else if (sd->entry == &sort_socket) {
 			sort__has_socket = 1;
+		} else if (sd->entry == &sort_comm || sd->entry == &sort_thread) {
+			sort__has_thread = 1;
 		}
 
 		return __sort_dimension__add(sd);
