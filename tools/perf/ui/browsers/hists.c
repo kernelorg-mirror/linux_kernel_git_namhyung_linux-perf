@@ -1242,6 +1242,137 @@ static int hist_browser__show_entry(struct hist_browser *browser,
 	return printed;
 }
 
+static int hist_browser__show_hierarchy_entry(struct hist_browser *browser,
+					      struct hist_entry *entry,
+					      unsigned short row,
+					      int level, int nr_sort_keys)
+{
+	char s[256];
+	int printed = 0;
+	int width = browser->b.width;
+	char folded_sign = ' ';
+	bool current_entry = ui_browser__is_current_entry(&browser->b, row);
+	off_t row_offset = entry->row_offset;
+	bool first = true;
+	struct perf_hpp_fmt *fmt;
+	struct hpp_arg arg = {
+		.b		= &browser->b,
+		.current_entry	= current_entry,
+	};
+	struct perf_hpp hpp = {
+		.buf		= s,
+		.size		= sizeof(s),
+		.ptr		= &arg,
+	};
+	int column = 0;
+	int hierarchy_indent = (nr_sort_keys - 1) * HIERARCHY_INDENT;
+
+	if (current_entry) {
+		browser->he_selection = entry;
+		browser->selection = &entry->ms;
+	}
+
+	hist_entry__init_have_children(entry);
+	folded_sign = hist_entry__folded(entry);
+	arg.folded_sign = folded_sign;
+
+	if (entry->leaf && row_offset) {
+		row_offset--;
+		goto show_callchain;
+	}
+
+	hist_browser__gotorc(browser, row, 0);
+
+	if (current_entry && browser->b.navkeypressed)
+		ui_browser__set_color(&browser->b, HE_COLORSET_SELECTED);
+	else
+		ui_browser__set_color(&browser->b, HE_COLORSET_NORMAL);
+
+	ui_browser__write_nstring(&browser->b, "", level * HIERARCHY_INDENT);
+	width -= level * HIERARCHY_INDENT;
+
+	perf_hpp__for_each_format(fmt) {
+		if (perf_hpp__should_skip(fmt, entry->hists) ||
+		    column++ < browser->b.horiz_scroll)
+			continue;
+
+		if (perf_hpp__is_sort_entry(fmt) ||
+		    perf_hpp__is_dynamic_entry(fmt))
+			break;
+
+		if (current_entry && browser->b.navkeypressed) {
+			ui_browser__set_color(&browser->b,
+					      HE_COLORSET_SELECTED);
+		} else {
+			ui_browser__set_color(&browser->b,
+					      HE_COLORSET_NORMAL);
+		}
+
+		if (first) {
+			ui_browser__printf(&browser->b, "%c", folded_sign);
+			width--;
+			first = false;
+		} else {
+			ui_browser__printf(&browser->b, "  ");
+			width -= 2;
+		}
+
+		if (fmt->color) {
+			width -= fmt->color(fmt, &hpp, entry);
+		} else {
+			width -= fmt->entry(fmt, &hpp, entry);
+			ui_browser__printf(&browser->b, "%s", s);
+		}
+	}
+
+	ui_browser__write_nstring(&browser->b, "", hierarchy_indent);
+	width -= hierarchy_indent;
+
+	if (column >= browser->b.horiz_scroll) {
+		if (current_entry && browser->b.navkeypressed) {
+			ui_browser__set_color(&browser->b,
+					      HE_COLORSET_SELECTED);
+		} else {
+			ui_browser__set_color(&browser->b,
+					      HE_COLORSET_NORMAL);
+		}
+
+		ui_browser__write_nstring(&browser->b, "", 2);
+		width -= 2;
+
+		fmt = entry->fmt;
+		if (fmt->color) {
+			width -= fmt->color(fmt, &hpp, entry);
+		} else {
+			width -= fmt->entry(fmt, &hpp, entry);
+			ui_browser__printf(&browser->b, "%s", s);
+		}
+	}
+
+	/* The scroll bar isn't being used */
+	if (!browser->b.navkeypressed)
+		width += 1;
+
+	ui_browser__write_nstring(&browser->b, "", width);
+
+	++row;
+	++printed;
+
+show_callchain:
+	if (entry->leaf && folded_sign == '-' && row != browser->b.rows) {
+		struct callchain_print_arg carg = {
+			.row_offset = row_offset,
+		};
+
+		printed += hist_browser__show_callchain(browser, entry,
+					level + 1, row,
+					hist_browser__show_callchain_entry, &carg,
+					hist_browser__check_output_full);
+	}
+
+	return printed;
+}
+
 static int advance_hpp_check(struct perf_hpp *hpp, int inc)
 {
 	advance_hpp(hpp, inc);
@@ -1307,6 +1438,7 @@ static unsigned int hist_browser__refresh(struct ui_browser *browser)
 	u16 header_offset = 0;
 	struct rb_node *nd;
 	struct hist_browser *hb = container_of(browser, struct hist_browser, b);
+	int nr_sort = perf_hpp__count_sort_keys();
 
 	if (hb->show_headers) {
 		hist_browser__show_headers(hb);
@@ -1317,18 +1449,28 @@ static unsigned int hist_browser__refresh(struct ui_browser *browser)
 	hb->he_selection = NULL;
 	hb->selection = NULL;
 
-	for (nd = browser->top; nd; nd = rb_next(nd)) {
+	for (nd = browser->top; nd; nd = rb_hierarchy_next(nd)) {
 		struct hist_entry *h = rb_entry(nd, struct hist_entry, rb_node);
 		float percent;
 
-		if (h->filtered)
+		if (h->filtered) {
+			/* let it move to sibling */
+			h->unfolded = false;
 			continue;
+		}
 
 		percent = hist_entry__get_percent_limit(h);
 		if (percent < hb->min_pcnt)
 			continue;
 
-		row += hist_browser__show_entry(hb, h, row);
+		if (symbol_conf.report_hierarchy) {
+			row += hist_browser__show_hierarchy_entry(hb, h, row,
+								  h->depth,
+								  nr_sort);
+		} else {
+			row += hist_browser__show_entry(hb, h, row);
+		}
+
 		if (row == browser->rows)
 			break;
 	}
@@ -1346,7 +1488,14 @@ static struct rb_node *hists__filter_entries(struct rb_node *nd,
 		if (!h->filtered && percent >= min_pcnt)
 			return nd;
 
-		nd = rb_next(nd);
+		/*
+		 * If it's filtered, its all children also were filtered.
+		 * So move to sibling node.
+		 */
+		if (rb_next(nd))
+			nd = rb_next(nd);
+		else
+			nd = rb_hierarchy_next(nd);
 	}
 
 	return NULL;
@@ -1362,7 +1511,7 @@ static struct rb_node *hists__filter_prev_entries(struct rb_node *nd,
 		if (!h->filtered && percent >= min_pcnt)
 			return nd;
 
-		nd = rb_prev(nd);
+		nd = rb_hierarchy_prev(nd);
 	}
 
 	return NULL;
@@ -1392,8 +1541,8 @@ static void ui_browser__hists_seek(struct ui_browser *browser,
 		nd = browser->top;
 		goto do_offset;
 	case SEEK_END:
-		nd = hists__filter_prev_entries(rb_last(browser->entries),
-						hb->min_pcnt);
+		nd = rb_hierarchy_last(rb_last(browser->entries));
+		nd = hists__filter_prev_entries(nd, hb->min_pcnt);
 		first = false;
 		break;
 	default:
@@ -1427,7 +1576,7 @@ do_offset:
 	if (offset > 0) {
 		do {
 			h = rb_entry(nd, struct hist_entry, rb_node);
-			if (h->unfolded) {
+			if (h->unfolded && h->leaf) {
 				u16 remaining = h->nr_rows - h->row_offset;
 				if (offset > remaining) {
 					offset -= remaining;
@@ -1439,7 +1588,8 @@ do_offset:
 					break;
 				}
 			}
-			nd = hists__filter_entries(rb_next(nd), hb->min_pcnt);
+			nd = hists__filter_entries(rb_hierarchy_next(nd),
+						   hb->min_pcnt);
 			if (nd == NULL)
 				break;
 			--offset;
@@ -1448,7 +1598,7 @@ do_offset:
 	} else if (offset < 0) {
 		while (1) {
 			h = rb_entry(nd, struct hist_entry, rb_node);
-			if (h->unfolded) {
+			if (h->unfolded && h->leaf) {
 				if (first) {
 					if (-offset > h->row_offset) {
 						offset += h->row_offset;
@@ -1472,7 +1622,7 @@ do_offset:
 				}
 			}
 
-			nd = hists__filter_prev_entries(rb_prev(nd),
+			nd = hists__filter_prev_entries(rb_hierarchy_prev(nd),
 							hb->min_pcnt);
 			if (nd == NULL)
 				break;
@@ -1485,7 +1635,7 @@ do_offset:
 				 * row_offset at its last entry.
 				 */
 				h = rb_entry(nd, struct hist_entry, rb_node);
-				if (h->unfolded)
+				if (h->unfolded && h->leaf)
 					h->row_offset = h->nr_rows;
 				break;
 			}
@@ -1499,13 +1649,14 @@ do_offset:
 }
 
 static int hist_browser__fprintf_callchain(struct hist_browser *browser,
-					   struct hist_entry *he, FILE *fp)
+					   struct hist_entry *he, FILE *fp,
+					   int level)
 {
 	struct callchain_print_arg arg  = {
 		.fp = fp,
 	};
 
-	hist_browser__show_callchain(browser, he, 1, 0,
+	hist_browser__show_callchain(browser, he, level, 0,
 				     hist_browser__fprintf_callchain_entry, &arg,
 				     hist_browser__check_dump_full);
 	return arg.printed;
@@ -1547,7 +1698,65 @@ static int hist_browser__fprintf_entry(struct hist_browser *browser,
 	printed += fprintf(fp, "%s\n", rtrim(s));
 
 	if (folded_sign == '-')
-		printed += hist_browser__fprintf_callchain(browser, he, fp);
+		printed += hist_browser__fprintf_callchain(browser, he, fp, 1);
+
+	return printed;
+}
+
+
+static int hist_browser__fprintf_hierarchy_entry(struct hist_browser *browser,
+						 struct hist_entry *he,
+						 FILE *fp, int level,
+						 int nr_sort_keys)
+{
+	char s[8192];
+	int printed = 0;
+	char folded_sign = ' ';
+	struct perf_hpp hpp = {
+		.buf = s,
+		.size = sizeof(s),
+	};
+	struct perf_hpp_fmt *fmt;
+	bool first = true;
+	int ret;
+	int hierarchy_indent = (nr_sort_keys + 1) * HIERARCHY_INDENT;
+
+	printed = fprintf(fp, "%*s", level * HIERARCHY_INDENT, "");
+
+	folded_sign = hist_entry__folded(he);
+	printed += fprintf(fp, "%c", folded_sign);
+
+	perf_hpp__for_each_format(fmt) {
+		if (perf_hpp__should_skip(fmt, he->hists))
+			continue;
+
+		if (perf_hpp__is_sort_entry(fmt) ||
+		    perf_hpp__is_dynamic_entry(fmt))
+			break;
+
+		if (!first) {
+			ret = scnprintf(hpp.buf, hpp.size, "  ");
+			advance_hpp(&hpp, ret);
+		} else
+			first = false;
+
+		ret = fmt->entry(fmt, &hpp, he);
+		advance_hpp(&hpp, ret);
+	}
+
+	ret = scnprintf(hpp.buf, hpp.size, "%*s", hierarchy_indent, "");
+	advance_hpp(&hpp, ret);
+
+	fmt = he->fmt;
+	ret = fmt->entry(fmt, &hpp, he);
+	advance_hpp(&hpp, ret);
+
+	printed += fprintf(fp, "%s\n", rtrim(s));
+
+	if (he->leaf && folded_sign == '-') {
+		printed += hist_browser__fprintf_callchain(browser, he, fp,
+							   he->depth + 1);
+	}
 
 	return printed;
 }
@@ -1557,12 +1766,22 @@ static int hist_browser__fprintf(struct hist_browser *browser, FILE *fp)
 	struct rb_node *nd = hists__filter_entries(rb_first(browser->b.entries),
 						   browser->min_pcnt);
 	int printed = 0;
+	int nr_sort = perf_hpp__count_sort_keys();
 
 	while (nd) {
 		struct hist_entry *h = rb_entry(nd, struct hist_entry, rb_node);
 
-		printed += hist_browser__fprintf_entry(browser, h, fp);
-		nd = hists__filter_entries(rb_next(nd), browser->min_pcnt);
+		if (symbol_conf.report_hierarchy) {
+			printed += hist_browser__fprintf_hierarchy_entry(browser,
+									 h, fp,
+									 h->depth,
+									 nr_sort);
+		} else {
+			printed += hist_browser__fprintf_entry(browser, h, fp);
+		}
+
+		nd = hists__filter_entries(rb_hierarchy_next(nd),
+					   browser->min_pcnt);
 	}
 
 	return printed;
