@@ -410,4 +410,8 @@ int perf_hist_config(const char *var, const char *value);
 
 void perf_hpp_list__init(struct perf_hpp_list *list);
 
+struct rb_node *rb_hierarchy_last(struct rb_node *node);
+struct rb_node *rb_hierarchy_next(struct rb_node *node);
+struct rb_node *rb_hierarchy_prev(struct rb_node *node);
+
 #endif	/* __PERF_HIST_H */
