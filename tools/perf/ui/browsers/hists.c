@@ -542,22 +542,44 @@ static int callchain__set_folding(struct rb_root *chain, bool unfold, u64 total)
 	return n;
 }
 
-static void hist_entry__set_folding(struct hist_entry *he, bool unfold,
-				    u64 total)
+static int hierarchy_set_folding(struct hist_browser *hb, struct hist_entry *he,
+				 bool unfold __maybe_unused)
 {
-	if (callchain_param.mode == CHAIN_GRAPH_REL) {
-		if (symbol_conf.cumulate_callchain)
-			total = he->stat_acc->period;
-		else
-			total = he->stat.period;
+	float percent;
+	struct rb_node *nd;
+	struct hist_entry *child;
+	int n = 0;
+
+	for (nd = rb_first(&he->hroot_out); nd; nd = rb_next(nd)) {
+		child = rb_entry(nd, struct hist_entry, rb_node);
+		percent = hist_entry__get_percent_limit(child);
+		if (!child->filtered && percent >= hb->min_pcnt)
+			n++;
 	}
 
-	hist_entry__init_have_children(he);
+	return n;
+}
+
+static void hist_entry__set_folding(struct hist_entry *he, struct hist_browser *hb,
+				    bool unfold, u64 total)
+{
 	he->unfolded = unfold ? he->has_children : false;
 
 	if (he->has_children) {
-		int n = callchain__set_folding(&he->sorted_chain, unfold,
-					       total);
+		int n;
+
+		if (he->leaf) {
+			if (callchain_param.mode == CHAIN_GRAPH_REL) {
+				if (symbol_conf.cumulate_callchain)
+					total = he->stat_acc->period;
+				else
+					total = he->stat.period;
+			}
+
+			n = callchain__set_folding(&he->sorted_chain, unfold, total);
+		} else
+			n = hierarchy_set_folding(hb, he, unfold);
+
 		he->nr_rows = unfold ? n : 0;
 	} else
 		he->nr_rows = 0;
@@ -570,18 +592,37 @@ __hist_browser__set_folding(struct hist_browser *browser, bool unfold)
 	struct hists *hists = browser->hists;
 	u64 total = hists__total_period(hists);
 	struct hist_entry *he;
+	double percent;
 
-	for (nd = rb_first(&hists->entries);
-	     (nd = hists__filter_entries(nd, browser->min_pcnt)) != NULL;
-	     nd = rb_next(nd)) {
+	nd = rb_first(&hists->entries);
+	while (nd) {
 		he = rb_entry(nd, struct hist_entry, rb_node);
-		hist_entry__set_folding(he, unfold, total);
-		browser->nr_callchain_rows += he->nr_rows;
+
+		hist_entry__init_have_children(he);
+
+		/*
+		 * Tentatively set unfolded so that the rb_hierarchy_next()
+		 * can toggle children of folded entries too.
+		 */
+		he->unfolded = he->has_children;
+		nd = rb_hierarchy_next(nd);
+
+		hist_entry__set_folding(he, browser, unfold, total);
+
+		percent = hist_entry__get_percent_limit(he);
+		if (he->filtered || percent < browser->min_pcnt)
+			continue;
+
+		if (!he->depth || unfold)
+			browser->nr_hierarchy_entries++;
+		if (he->leaf)
+			browser->nr_callchain_rows += he->nr_rows;
 	}
 }
 
 static void hist_browser__set_folding(struct hist_browser *browser, bool unfold)
 {
+	browser->nr_hierarchy_entries = 0;
 	browser->nr_callchain_rows = 0;
 	__hist_browser__set_folding(browser, unfold);
 
