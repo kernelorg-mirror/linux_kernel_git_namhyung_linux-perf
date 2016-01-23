@@ -681,6 +681,14 @@ static int hist_browser__show_callchain_flat(struct hist_browser *browser,
 		char folded_sign = ' ';
 		int first = true;
 		int extra_offset = 0;
+		double percent;
+		u64 hits;
+
+		hits = callchain_cumul_hits(child);
+		percent = 100.0 * hits / total;
+
+		if (percent < callchain_param.min_percent)
+			goto next;
 
 		list_for_each_entry(chain, &child->parent_val, list) {
 			bool was_first = first;
@@ -784,11 +792,19 @@ static int hist_browser__show_callchain_folded(struct hist_browser *browser,
 		int first = true;
 		char *value_str = NULL, *value_str_alloc = NULL;
 		char *chain_str = NULL, *chain_str_alloc = NULL;
+		double percent;
+		u64 hits;
 
 		if (arg->row_offset != 0) {
 			arg->row_offset--;
 			goto next;
 		}
+
+		hits = callchain_cumul_hits(child);
+		percent = 100.0 * hits / total;
+
+		if (percent < callchain_param.min_percent)
+			goto next;
 
 		if (need_percent) {
 			char buf[64];
@@ -869,6 +885,14 @@ static int hist_browser__show_callchain_graph(struct hist_browser *browser,
 		char folded_sign = ' ';
 		int first = true;
 		int extra_offset = 0;
+		double percent;
+		u64 hits;
+
+		hits = callchain_cumul_hits(child);
+		percent = 100.0 * hits / total;
+
+		if (percent < callchain_param.min_percent)
+			goto next;
 
 		list_for_each_entry(chain, &child->val, list) {
 			bool was_first = first;
@@ -905,6 +929,7 @@ static int hist_browser__show_callchain_graph(struct hist_browser *browser,
 							    new_level, row, new_total,
 							    print, arg, is_output_full);
 		}
+next:
 		if (is_output_full(browser, row))
 			break;
 		node = next;
