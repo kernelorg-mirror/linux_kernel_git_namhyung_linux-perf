@@ -215,7 +215,7 @@ static int callchain_node__count_folded_rows(struct callchain_node *node __maybe
 static int callchain_node__count_rows(struct callchain_node *node)
 {
 	struct callchain_list *chain;
-	bool unfolded = false;
+	char folded_sign = ' ';
 	int n = 0;
 
 	if (callchain_param.mode == CHAIN_FLAT)
@@ -225,10 +225,13 @@ static int callchain_node__count_rows(struct callchain_node *node)
 
 	list_for_each_entry(chain, &node->val, list) {
 		++n;
-		unfolded = chain->unfolded;
+
+		folded_sign = callchain_list__folded(chain);
+		if (folded_sign == '+')
+			break;
 	}
 
-	if (unfolded)
+	if (folded_sign == '-')
 		n += callchain_node__count_rows_rb_tree(node);
 
 	return n;
