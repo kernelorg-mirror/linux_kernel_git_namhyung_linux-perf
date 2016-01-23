@@ -96,11 +96,18 @@ static size_t __callchain__fprintf_graph(FILE *fp, struct rb_root *root,
 	while (node) {
 		u64 new_total;
 		u64 cumul;
+		double percent = 0.0;
 
 		child = rb_entry(node, struct callchain_node, rb_node);
 		cumul = callchain_cumul_hits(child);
 		remaining -= cumul;
 		cumul_count += callchain_cumul_counts(child);
+
+		next = rb_next(node);
+
+		percent = 100.0 * cumul / total_samples;
+		if (percent < callchain_param.min_percent)
+			goto next;
 
 		/*
 		 * The depth mask manages the output of pipes that show
@@ -109,7 +116,6 @@ static size_t __callchain__fprintf_graph(FILE *fp, struct rb_root *root,
 		 * Except if we have remaining filtered hits. They will
 		 * supersede the last child
 		 */
-		next = rb_next(node);
 		if (!next && (callchain_param.mode != CHAIN_GRAPH_REL || !remaining))
 			new_depth_mask &= ~(1 << (depth - 1));
 
@@ -136,9 +142,11 @@ static size_t __callchain__fprintf_graph(FILE *fp, struct rb_root *root,
 						  depth + 1,
 						  new_depth_mask | (1 << depth),
 						  left_margin);
-		node = next;
+
 		if (++entries_printed == callchain_param.print_limit)
 			break;
+next:
+		node = next;
 	}
 
 	if (callchain_param.mode == CHAIN_GRAPH_REL &&
@@ -250,9 +258,17 @@ static size_t callchain__fprintf_flat(FILE *fp, struct rb_root *tree,
 	u32 entries_printed = 0;
 	struct callchain_node *chain;
 	struct rb_node *rb_node = rb_first(tree);
+	double percent;
+	u64 hits;
 
 	while (rb_node) {
 		chain = rb_entry(rb_node, struct callchain_node, rb_node);
+
+		hits = callchain_cumul_hits(chain);
+		percent = 100.0 * hits / total_samples;
+
+		if (percent < callchain_param.min_percent)
+			goto next;
 
 		ret += fprintf(fp, "           ");
 		ret += callchain_node__fprintf_value(chain, fp, total_samples);
@@ -261,7 +277,7 @@ static size_t callchain__fprintf_flat(FILE *fp, struct rb_root *tree,
 		ret += fprintf(fp, "\n");
 		if (++entries_printed == callchain_param.print_limit)
 			break;
-
+next:
 		rb_node = rb_next(rb_node);
 	}
 
@@ -301,10 +317,18 @@ static size_t callchain__fprintf_folded(FILE *fp, struct rb_root *tree,
 	u32 entries_printed = 0;
 	struct callchain_node *chain;
 	struct rb_node *rb_node = rb_first(tree);
+	double percent;
+	u64 hits;
 
 	while (rb_node) {
 
 		chain = rb_entry(rb_node, struct callchain_node, rb_node);
+
+		hits = callchain_cumul_hits(chain);
+		percent = 100.0 * hits / total_samples;
+
+		if (percent < callchain_param.min_percent)
+			goto next;
 
 		ret += callchain_node__fprintf_value(chain, fp, total_samples);
 		ret += fprintf(fp, " ");
@@ -312,7 +336,7 @@ static size_t callchain__fprintf_folded(FILE *fp, struct rb_root *tree,
 		ret += fprintf(fp, "\n");
 		if (++entries_printed == callchain_param.print_limit)
 			break;
-
+next:
 		rb_node = rb_next(rb_node);
 	}
 
