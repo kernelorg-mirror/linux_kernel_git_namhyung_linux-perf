@@ -176,8 +176,15 @@ static int callchain_node__count_rows_rb_tree(struct callchain_node *node, u64 t
 				break;
 		}
 
-		if (folded_sign == '-') /* Have children and they're unfolded */
-			n += callchain_node__count_rows_rb_tree(child, total);
+		if (folded_sign == '-') {
+			/* Have children and they're unfolded */
+			u64 new_total = total;
+
+			if (callchain_param.mode == CHAIN_GRAPH_REL)
+				new_total = child->children_hit;
+
+			n += callchain_node__count_rows_rb_tree(child, new_total);
+		}
 	}
 
 	return n;
@@ -253,6 +260,13 @@ static int callchain__count_rows(struct hist_entry *he)
 	struct rb_node *nd;
 	int n = 0;
 	u64 total = hists__total_period(he->hists);
+
+	if (callchain_param.mode == CHAIN_GRAPH_REL) {
+		if (symbol_conf.cumulate_callchain)
+			total = he->stat_acc->period;
+		else
+			total = he->stat.period;
+	}
 
 	chain = &he->sorted_chain;
 	for (nd = rb_first(chain); nd; nd = rb_next(nd)) {
@@ -408,9 +422,15 @@ static int callchain_node__set_folding_rb_tree(struct callchain_node *node,
 			has_children = chain->has_children;
 		}
 
-		if (has_children)
+		if (has_children) {
+			u64 new_total = total;
+
+			if (callchain_param.mode == CHAIN_GRAPH_REL)
+				new_total = node->children_hit;
+
 			n += callchain_node__set_folding_rb_tree(child, unfold,
-								 total);
+								 new_total);
+		}
 	}
 
 	return n;
@@ -432,9 +452,15 @@ static int callchain_node__set_folding(struct callchain_node *node, bool unfold,
 		has_children = chain->has_children;
 	}
 
-	if (has_children)
+	if (has_children) {
+		u64 new_total = total;
+
+		if (callchain_param.mode == CHAIN_GRAPH_REL)
+			new_total = node->children_hit;
+
 		n += callchain_node__set_folding_rb_tree(node, unfold,
-							 total);
+							 new_total);
+	}
 
 	return n;
 }
@@ -457,6 +483,13 @@ static int callchain__set_folding(struct rb_root *chain, bool unfold, u64 total)
 static void hist_entry__set_folding(struct hist_entry *he, bool unfold,
 				    u64 total)
 {
+	if (callchain_param.mode == CHAIN_GRAPH_REL) {
+		if (symbol_conf.cumulate_callchain)
+			total = he->stat_acc->period;
+		else
+			total = he->stat.period;
+	}
+
 	hist_entry__init_have_children(he);
 	he->unfolded = unfold ? he->has_children : false;
 
