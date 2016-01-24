@@ -100,8 +100,13 @@ static void perf_gtk__add_callchain_flat(struct rb_root *root, GtkTreeStore *sto
 		struct callchain_list *chain;
 		GtkTreeIter iter, new_parent;
 		bool need_new_parent;
+		double percent;
 
 		node = rb_entry(nd, struct callchain_node, rb_node);
+
+		percent = 100.0 * callchain_cumul_hits(node) / total;
+		if (percent < callchain_param.min_percent)
+			continue;
 
 		new_parent = *parent;
 		need_new_parent = !has_single_node;
@@ -164,8 +169,13 @@ static void perf_gtk__add_callchain_folded(struct rb_root *root, GtkTreeStore *s
 		char buf[64];
 		char *str, *str_alloc = NULL;
 		bool first = true;
+		double percent;
 
 		node = rb_entry(nd, struct callchain_node, rb_node);
+
+		percent = 100.0 * callchain_cumul_hits(node) / total;
+		if (percent < callchain_param.min_percent)
+			continue;
 
 		callchain_node__make_parent_list(node);
 
@@ -224,8 +234,13 @@ static void perf_gtk__add_callchain_graph(struct rb_root *root, GtkTreeStore *st
 		GtkTreeIter iter, new_parent;
 		bool need_new_parent;
 		u64 child_total;
+		double percent;
 
 		node = rb_entry(nd, struct callchain_node, rb_node);
+
+		percent = 100.0 * callchain_cumul_hits(node) / total;
+		if (percent < callchain_param.min_percent)
+			continue;
 
 		new_parent = *parent;
 		need_new_parent = !has_single_node && (node->val_nr > 1);
