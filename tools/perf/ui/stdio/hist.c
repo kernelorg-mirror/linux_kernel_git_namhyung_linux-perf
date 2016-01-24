@@ -120,6 +120,21 @@ static size_t __callchain__fprintf_graph(FILE *fp, struct rb_root *root,
 			new_depth_mask &= ~(1 << (depth - 1));
 
 		/*
+		 * If the next node is under percent limit, remaining
+		 * callchains won't be shown.  So no need to keep the pipes.
+		 */
+		if (next) {
+			struct callchain_node *next_child;
+
+			next_child = rb_entry(next, struct callchain_node, rb_node);
+			cumul = callchain_cumul_counts(next_child);
+			percent = 100.0 * cumul / total_samples;
+
+			if (percent < callchain_param.min_percent)
+				new_depth_mask &= ~(1 << (depth - 1));
+		}
+
+		/*
 		 * But we keep the older depth mask for the line separator
 		 * to keep the level link until we reach the last child
 		 */
