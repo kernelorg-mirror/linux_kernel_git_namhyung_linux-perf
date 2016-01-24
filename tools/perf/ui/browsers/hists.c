@@ -153,7 +153,7 @@ static void callchain_list__set_folding(struct callchain_list *cl, bool unfold)
 	cl->unfolded = unfold ? cl->has_children : false;
 }
 
-static int callchain_node__count_rows_rb_tree(struct callchain_node *node)
+static int callchain_node__count_rows_rb_tree(struct callchain_node *node, u64 total)
 {
 	int n = 0;
 	struct rb_node *nd;
@@ -162,6 +162,11 @@ static int callchain_node__count_rows_rb_tree(struct callchain_node *node)
 		struct callchain_node *child = rb_entry(nd, struct callchain_node, rb_node);
 		struct callchain_list *chain;
 		char folded_sign = ' '; /* No children */
+		double percent;
+
+		percent = 100.0 * callchain_cumul_hits(child) / total;
+		if (percent < callchain_param.min_percent)
+			continue;
 
 		list_for_each_entry(chain, &child->val, list) {
 			++n;
@@ -172,7 +177,7 @@ static int callchain_node__count_rows_rb_tree(struct callchain_node *node)
 		}
 
 		if (folded_sign == '-') /* Have children and they're unfolded */
-			n += callchain_node__count_rows_rb_tree(child);
+			n += callchain_node__count_rows_rb_tree(child, total);
 	}
 
 	return n;
@@ -212,11 +217,16 @@ static int callchain_node__count_folded_rows(struct callchain_node *node __maybe
 	return 1;
 }
 
-static int callchain_node__count_rows(struct callchain_node *node)
+static int callchain_node__count_rows(struct callchain_node *node, u64 total)
 {
 	struct callchain_list *chain;
 	char folded_sign = ' ';
 	int n = 0;
+	double percent;
+
+	percent = 100.0 * callchain_cumul_hits(node) / total;
+	if (percent < callchain_param.min_percent)
+		return 0;
 
 	if (callchain_param.mode == CHAIN_FLAT)
 		return callchain_node__count_flat_rows(node);
@@ -232,19 +242,22 @@ static int callchain_node__count_rows(struct callchain_node *node)
 	}
 
 	if (folded_sign == '-')
-		n += callchain_node__count_rows_rb_tree(node);
+		n += callchain_node__count_rows_rb_tree(node, total);
 
 	return n;
 }
 
-static int callchain__count_rows(struct rb_root *chain)
+static int callchain__count_rows(struct hist_entry *he)
 {
+	struct rb_root *chain;
 	struct rb_node *nd;
 	int n = 0;
+	u64 total = hists__total_period(he->hists);
 
+	chain = &he->sorted_chain;
 	for (nd = rb_first(chain); nd; nd = rb_next(nd)) {
 		struct callchain_node *node = rb_entry(nd, struct callchain_node, rb_node);
-		n += callchain_node__count_rows(node);
+		n += callchain_node__count_rows(node, total);
 	}
 
 	return n;
@@ -357,7 +370,7 @@ static bool hist_browser__toggle_fold(struct hist_browser *browser)
 		browser->nr_callchain_rows -= he->nr_rows;
 
 		if (he->unfolded)
-			he->nr_rows = callchain__count_rows(&he->sorted_chain);
+			he->nr_rows = callchain__count_rows(he);
 		else
 			he->nr_rows = 0;
 
