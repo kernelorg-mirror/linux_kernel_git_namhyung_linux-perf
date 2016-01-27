@@ -643,7 +643,7 @@ parse_percent_limit(const struct option *opt, const char *str,
 	return 0;
 }
 
-#define CALLCHAIN_DEFAULT_OPT  "graph,0.5,caller,function,percent"
+#define CALLCHAIN_DEFAULT_OPT  "graph,0.005,caller,function,percent"
 
 const char report_callchain_help[] = "Display call graph (stack chain/backtrace):\n\n"
 				     CALLCHAIN_REPORT_HELP
