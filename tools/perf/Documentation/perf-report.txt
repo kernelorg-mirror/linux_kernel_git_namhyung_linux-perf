@@ -209,7 +209,7 @@ OPTIONS
 	- none: disable call chain display.
 
 	threshold is a percentage value which specifies a minimum percent to be
-	included in the output call graph.  Default is 0.5 (%).
+	included in the output call graph.  Default is 0.05 (%).
 
 	print_limit is only applied when stdio interface is used.  It's to limit
 	number of call graph entries in a single hist entry.  Note that it needs
