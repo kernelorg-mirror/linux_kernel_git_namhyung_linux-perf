@@ -1602,16 +1602,30 @@ int hist_entry__filter(struct hist_entry *he, int type, const void *arg)
 {
 	struct perf_hpp_fmt *fmt;
 	struct hpp_sort_entry *hse;
+	int ret = -1;
+	int r;
 
-	fmt = he->fmt;
-	if (fmt == NULL || !perf_hpp__is_sort_entry(fmt))
-		return -1;
+	perf_hpp_list__for_each_format(he->hpp_list, fmt) {
+		if (fmt == NULL || !perf_hpp__is_sort_entry(fmt))
+			continue;
 
-	hse = container_of(fmt, struct hpp_sort_entry, hpp);
-	if (hse->se->se_filter == NULL)
-		return -1;
+		hse = container_of(fmt, struct hpp_sort_entry, hpp);
+		if (hse->se->se_filter == NULL)
+			continue;
 
-	return hse->se->se_filter(he, type, arg);
+		/*
+		 * hist entry is filtered when all sort keys in the hpp list
+		 * is applied.  So if any sort key returns 0, it will *NOT*
+		 * filtered out.
+		 */
+		r = hse->se->se_filter(he, type, arg);
+		if (r == 0)
+			return 0;
+		if (r > 0)
+			ret = 1;
+	}
+
+	return ret;
 }
 
 static int __sort_dimension__add_hpp_sort(struct sort_dimension *sd, int level)
