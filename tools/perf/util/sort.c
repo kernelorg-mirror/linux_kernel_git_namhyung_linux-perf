@@ -2307,10 +2307,22 @@ static int setup_sort_list(char *str, struct perf_evlist *evlist)
 	char *tmp, *tok;
 	int ret = 0;
 	int level = 0;
+	int next_level;
 
-	for (tok = strtok_r(str, ", ", &tmp);
-			tok; tok = strtok_r(NULL, ", ", &tmp)) {
-		ret = sort_dimension__add(tok, evlist, level++);
+	do {
+		tok = str;
+		tmp = strpbrk(str, ":, ");
+		if (tmp) {
+			if (*tmp == ':')
+				next_level = level;
+			else
+				next_level = level + 1;
+
+			*tmp = '\0';
+			str = tmp + 1;
+		}
+
+		ret = sort_dimension__add(tok, evlist, level);
 		if (ret == -EINVAL) {
 			error("Invalid --sort key: `%s'", tok);
 			break;
@@ -2318,7 +2330,9 @@ static int setup_sort_list(char *str, struct perf_evlist *evlist)
 			error("Unknown --sort key: `%s'", tok);
 			break;
 		}
-	}
+
+		level = next_level;
+	} while (tmp);
 
 	return ret;
 }
