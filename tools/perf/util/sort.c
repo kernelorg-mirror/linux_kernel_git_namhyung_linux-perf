@@ -77,7 +77,7 @@ sort__thread_cmp(struct hist_entry *left, struct hist_entry *right)
 static int hist_entry__thread_snprintf(struct hist_entry *he, char *bf,
 				       size_t size, unsigned int width)
 {
-	const char *comm = thread__comm_str(he->thread);
+	const char *comm = comm__str(he->comm);
 
 	width = max(7U, width) - 8;
 	return repsep_snprintf(bf, size, "%7d:%-*.*s", he->thread->tid,
