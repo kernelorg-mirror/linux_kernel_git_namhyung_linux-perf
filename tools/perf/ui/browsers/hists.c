@@ -1381,8 +1381,14 @@ static int hist_browser__show_hierarchy_entry(struct hist_browser *browser,
 		}
 
 		perf_hpp_list__for_each_format(entry->hpp_list, fmt) {
-			ui_browser__write_nstring(&browser->b, "", 2);
-			width -= 2;
+			if (first) {
+				ui_browser__printf(&browser->b, "%c ", folded_sign);
+				width -= 2;
+				first = false;
+			} else {
+				ui_browser__write_nstring(&browser->b, "", 2);
+				width -= 2;
+			}
 
 			/*
 			 * No need to call hist_entry__snprintf_alignment()
