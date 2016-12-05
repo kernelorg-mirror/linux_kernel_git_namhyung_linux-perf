@@ -230,6 +230,15 @@ struct evsel_runtime {
 	u32 ncpu;       /* highest cpu slot allocated */
 };
 
+/* per cpu idle time data */
+struct idle_thread_runtime {
+	struct thread_runtime tr;
+	struct thread *last_thread;
+	struct rb_root sorted_root;
+	struct callchain_root callchain;
+	struct callchain_cursor cursor;
+};
+
 /* track idle times per cpu */
 static struct thread **idle_threads;
 static int idle_max_cpu;
@@ -2009,11 +2018,22 @@ static int init_idle_threads(int ncpu)
 
 	/* allocate the actual thread struct if needed */
 	for (i = 0; i < ncpu; ++i) {
+		struct idle_thread_runtime *itr;
+
 		idle_threads[i] = thread__new(0, 0);
 		if (idle_threads[i] == NULL)
 			return -ENOMEM;
 
 		thread__set_comm(idle_threads[i], idle_comm, 0);
+
+		itr = zalloc(sizeof(*itr));
+		if (itr == NULL)
+			return -ENOMEM;
+
+		init_stats(&itr->tr.run_stats);
+		callchain_init(&itr->callchain);
+		callchain_cursor_reset(&itr->cursor);
+		thread__set_priv(idle_threads[i], itr);
 	}
 
 	return 0;
@@ -2060,8 +2080,19 @@ static struct thread *get_idle_thread(int cpu)
 		idle_threads[cpu] = thread__new(0, 0);
 
 		if (idle_threads[cpu]) {
+			struct idle_thread_runtime *itr;
+
 			idle_threads[cpu]->tid = 0;
 			thread__set_comm(idle_threads[cpu], idle_comm, 0);
+
+			itr = zalloc(sizeof(*itr));
+			if (itr == NULL)
+				return NULL;
+
+			init_stats(&itr->tr.run_stats);
+			callchain_init(&itr->callchain);
+			callchain_cursor_reset(&itr->cursor);
+			thread__set_priv(idle_threads[cpu], itr);
 		}
 	}
 
