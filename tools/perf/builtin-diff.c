@@ -86,7 +86,7 @@ const char *compute_names[COMPUTE_MAX] = {
 	[COMPUTE_WEIGHTED_DIFF] = "wdiff",
 };
 
-static int compute;
+static int compute = COMPUTE_DELTA;
 
 static int compute_2_hpp[COMPUTE_MAX] = {
 	[COMPUTE_DELTA]		= PERF_HPP_DIFF__DELTA,
@@ -1300,6 +1300,17 @@ static int diff__config(const char *var, const char *value,
 
 	if (!strcmp(var + 5, "order")) {
 		sort_compute = perf_config_int(var, value);
+		return 0;
+	}
+	if (!strcmp(var + 5, "compute")) {
+		if (!strcmp(value, "delta"))
+			compute = COMPUTE_DELTA;
+		else if (!strcmp(value, "delta-abs"))
+			compute = COMPUTE_DELTA_ABS;
+		else if (!strcmp(value, "ratio"))
+			compute = COMPUTE_RATIO;
+		else if (!strcmp(value, "wdiff"))
+			compute = COMPUTE_WEIGHTED_DIFF;
 		return 0;
 	}
 
