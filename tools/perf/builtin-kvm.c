@@ -1018,7 +1018,7 @@ static int kvm_live_open_events(struct perf_kvm_stat *kvm)
 
 	err = perf_evlist__open(evlist);
 	if (err < 0) {
-		printf("Couldn't create the events: %s\n",
+		pr_err("Couldn't create the events: %s\n",
 		       str_error_r(errno, sbuf, sizeof(sbuf)));
 		goto out;
 	}
@@ -1313,6 +1313,7 @@ static int kvm_events_live(struct perf_kvm_stat *kvm,
 			perf_evlist__parse_mmap_pages),
 		OPT_INCR('v', "verbose", &verbose,
 			"be more verbose (show counter open errors, etc)"),
+		OPT_BOOLEAN('q', "quiet", &quiet, "Do not show any message"),
 		OPT_BOOLEAN('a', "all-cpus", &kvm->opts.target.system_wide,
 			"system-wide collection from all CPUs"),
 		OPT_UINTEGER('d', "display", &kvm->display_time,
@@ -1371,6 +1372,9 @@ static int kvm_events_live(struct perf_kvm_stat *kvm,
 		if (argc)
 			usage_with_options(live_usage, live_options);
 	}
+
+	if (quiet)
+		perf_quiet_option();
 
 	kvm->duration *= NSEC_PER_USEC;   /* convert usec to nsec */
 
@@ -1557,6 +1561,7 @@ int cmd_kvm(int argc, const char **argv, const char *prefix __maybe_unused)
 			   "file", "file saving guest os /proc/modules"),
 		OPT_INCR('v', "verbose", &verbose,
 			    "be more verbose (show counter open errors, etc)"),
+		OPT_BOOLEAN('q', "quiet", &quiet, "Do not show any message"),
 		OPT_END()
 	};
 
@@ -1571,6 +1576,9 @@ int cmd_kvm(int argc, const char **argv, const char *prefix __maybe_unused)
 					PARSE_OPT_STOP_AT_NON_OPTION);
 	if (!argc)
 		usage_with_options(kvm_usage, kvm_options);
+
+	if (quiet)
+		perf_quiet_option();
 
 	if (!perf_host)
 		perf_guest = 1;

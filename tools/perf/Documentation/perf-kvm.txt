@@ -96,6 +96,9 @@ OPTIONS
 -v::
 --verbose::
 	Be more verbose (show counter open errors, etc).
+-q::
+--quiet::
+	Do not show any message.
 
 STAT REPORT OPTIONS
 -------------------
