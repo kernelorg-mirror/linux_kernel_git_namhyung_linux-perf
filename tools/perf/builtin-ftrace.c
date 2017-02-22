@@ -321,8 +321,8 @@ int cmd_ftrace(int argc, const char **argv, const char *prefix __maybe_unused)
 		   "tracer to use: function_graph(default) or function"),
 	OPT_STRING('p', "pid", &ftrace.target.pid, "pid",
 		   "trace on existing process id"),
-	OPT_INCR('v', "verbose", &verbose,
-		 "be more verbose"),
+	OPT_INCR('v', "verbose", &verbose, "be more verbose"),
+	OPT_BOOLEAN('q', "quiet", &quiet, "do not show any message"),
 	OPT_BOOLEAN('a', "all-cpus", &ftrace.target.system_wide,
 		    "system-wide collection from all CPUs"),
 	OPT_STRING('C', "cpu", &ftrace.target.cpu_list, "cpu",
@@ -338,6 +338,9 @@ int cmd_ftrace(int argc, const char **argv, const char *prefix __maybe_unused)
 			    PARSE_OPT_STOP_AT_NON_OPTION);
 	if (!argc && target__none(&ftrace.target))
 		usage_with_options(ftrace_usage, ftrace_options);
+
+	if (quiet)
+		perf_quiet_option();
 
 	ret = target__validate(&ftrace.target);
 	if (ret) {

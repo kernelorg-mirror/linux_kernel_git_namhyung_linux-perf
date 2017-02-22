@@ -30,6 +30,10 @@ OPTIONS
 --verbose=::
         Verbosity level.
 
+-q::
+--quiet::
+	Do not show any message.
+
 -p::
 --pid=::
 	Trace on existing process id (comma separated list).
