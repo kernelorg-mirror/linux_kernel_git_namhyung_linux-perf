@@ -28,6 +28,10 @@ OPTIONS
 --verbose=::
 	Show all fields.
 
+-q::
+--quiet::
+	Do not show any message.
+
 -g::
 --group::
 	Show event group information.

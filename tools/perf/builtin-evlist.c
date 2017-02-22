@@ -39,7 +39,7 @@ static int __cmd_evlist(const char *file_name, struct perf_attr_details *details
 			has_tracepoint = true;
 	}
 
-	if (has_tracepoint && !details->trace_fields)
+	if (has_tracepoint && !details->trace_fields && !quiet)
 		printf("# Tip: use 'perf evlist --trace-fields' to show fields for tracepoint events\n");
 
 	perf_session__delete(session);
@@ -54,6 +54,7 @@ int cmd_evlist(int argc, const char **argv, const char *prefix __maybe_unused)
 	OPT_BOOLEAN('F', "freq", &details.freq, "Show the sample frequency"),
 	OPT_BOOLEAN('v', "verbose", &details.verbose,
 		    "Show all event attr details"),
+	OPT_BOOLEAN('q', "quiet", &quiet, "Do not show any message"),
 	OPT_BOOLEAN('g', "group", &details.event_group,
 		    "Show event group information"),
 	OPT_BOOLEAN('f', "force", &details.force, "don't complain, do it"),
@@ -68,6 +69,11 @@ int cmd_evlist(int argc, const char **argv, const char *prefix __maybe_unused)
 	argc = parse_options(argc, argv, options, evlist_usage, 0);
 	if (argc)
 		usage_with_options(evlist_usage, options);
+
+	if (quiet) {
+		perf_quiet_option();
+		details.verbose = false;
+	}
 
 	if (details.event_group && (details.verbose || details.freq)) {
 		usage_with_options_msg(evlist_usage, options,
