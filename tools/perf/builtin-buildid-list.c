@@ -99,6 +99,7 @@ int cmd_buildid_list(int argc, const char **argv,
 	OPT_BOOLEAN('f', "force", &force, "don't complain, do it"),
 	OPT_BOOLEAN('k', "kernel", &show_kernel, "Show current kernel build id"),
 	OPT_INCR('v', "verbose", &verbose, "be more verbose"),
+	OPT_BOOLEAN('q', "quiet", &quiet, "Do not show any message"),
 	OPT_END()
 	};
 	const char * const buildid_list_usage[] = {
@@ -108,6 +109,9 @@ int cmd_buildid_list(int argc, const char **argv,
 
 	argc = parse_options(argc, argv, options, buildid_list_usage, 0);
 	setup_pager();
+
+	if (quiet)
+		perf_quiet_option();
 
 	if (show_kernel)
 		return !(sysfs__fprintf_build_id(stdout) > 0);
