@@ -34,6 +34,10 @@ OPTIONS for 'convert'
 --verbose::
         Be more verbose (show counter open errors, etc).
 
+-q::
+--quiet::
+	Do not show any message.
+
 --all::
 	Convert all events, including non-sample events (comm, fork, ...), to output.
 	Default is off, only convert samples.

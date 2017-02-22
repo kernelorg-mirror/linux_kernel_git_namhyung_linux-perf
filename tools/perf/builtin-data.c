@@ -60,6 +60,7 @@ static int cmd_data_convert(int argc, const char **argv,
 	};
 	const struct option options[] = {
 		OPT_INCR('v', "verbose", &verbose, "be more verbose"),
+		OPT_BOOLEAN('q', "quiet", &quiet, "Do not show any message"),
 		OPT_STRING('i', "input", &input_name, "file", "input file name"),
 #ifdef HAVE_LIBBABELTRACE_SUPPORT
 		OPT_STRING(0, "to-ctf", &to_ctf, NULL, "Convert to CTF format"),
@@ -80,6 +81,9 @@ static int cmd_data_convert(int argc, const char **argv,
 		usage_with_options(data_convert_usage, options);
 		return -1;
 	}
+
+	if (quiet)
+		perf_quiet_option();
 
 	if (to_ctf) {
 #ifdef HAVE_LIBBABELTRACE_SUPPORT
