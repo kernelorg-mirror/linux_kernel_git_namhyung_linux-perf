@@ -29,6 +29,9 @@ OPTIONS
 -v::
 --verbose::
 	Be more verbose.
+-q::
+--quiet::
+	Do not show any message.
 -i::
 --input=::
 	Input file name. (default: stdin)

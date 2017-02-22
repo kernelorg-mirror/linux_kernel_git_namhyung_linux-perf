@@ -484,8 +484,10 @@ static int perf_inject__sched_switch(struct perf_tool *tool,
 
 	ent = malloc(event->header.size + sizeof(struct event_entry));
 	if (ent == NULL) {
-		color_fprintf(stderr, PERF_COLOR_RED,
+		if (!quiet) {
+			color_fprintf(stderr, PERF_COLOR_RED,
 			     "Not enough memory to process sched switch event!");
+		}
 		return -1;
 	}
 
@@ -780,6 +782,7 @@ int cmd_inject(int argc, const char **argv, const char *prefix __maybe_unused)
 #endif
 		OPT_INCR('v', "verbose", &verbose,
 			 "be more verbose (show build ids, etc)"),
+		OPT_BOOLEAN('q', "quiet", &quiet, "do not show any message"),
 		OPT_STRING(0, "kallsyms", &symbol_conf.kallsyms_name, "file",
 			   "kallsyms pathname"),
 		OPT_BOOLEAN('f', "force", &file.force, "don't complain, do it"),
@@ -805,13 +808,16 @@ int cmd_inject(int argc, const char **argv, const char *prefix __maybe_unused)
 	if (argc)
 		usage_with_options(inject_usage, options);
 
+	if (quiet)
+		perf_quiet_option();
+
 	if (inject.strip && !inject.itrace_synth_opts.set) {
 		pr_err("--strip option requires --itrace option\n");
 		return -1;
 	}
 
 	if (perf_data_file__open(&inject.output)) {
-		perror("failed to create output file");
+		pr_err("failed to create output file: %s\n", strerror(errno));
 		return -1;
 	}
 
