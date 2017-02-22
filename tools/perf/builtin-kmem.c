@@ -1895,6 +1895,7 @@ int cmd_kmem(int argc, const char **argv, const char *prefix __maybe_unused)
 	OPT_STRING('i', "input", &input_name, "file", "input file name"),
 	OPT_INCR('v', "verbose", &verbose,
 		    "be more verbose (show symbol address, etc)"),
+	OPT_BOOLEAN('q', "quiet", &quiet, "Do not show any message"),
 	OPT_CALLBACK_NOOPT(0, "caller", NULL, NULL,
 			   "show per-callsite statistics", parse_caller_opt),
 	OPT_CALLBACK_NOOPT(0, "alloc", NULL, NULL,
@@ -1931,6 +1932,9 @@ int cmd_kmem(int argc, const char **argv, const char *prefix __maybe_unused)
 
 	if (!argc)
 		usage_with_options(kmem_usage, kmem_options);
+
+	if (quiet)
+		perf_quiet_option();
 
 	if (kmem_slab == 0 && kmem_page == 0) {
 		if (kmem_default == KMEM_SLAB)

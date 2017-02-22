@@ -29,6 +29,10 @@ OPTIONS
 --verbose::
         Be more verbose. (show symbol address, etc)
 
+-q::
+--quiet::
+	Do not show any message.
+
 --caller::
 	Show per-callsite statistics
 
