@@ -22,3 +22,7 @@ OPTIONS
 -v::
 --verbose=::
 	Increase verbosity level, showing details about symbol table loading, etc.
+
+-q::
+--quiet::
+	Do not show any message.

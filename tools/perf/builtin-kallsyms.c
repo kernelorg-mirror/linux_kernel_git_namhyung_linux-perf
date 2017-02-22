@@ -29,7 +29,8 @@ static int __cmd_kallsyms(int argc, const char **argv)
 		struct symbol *symbol = machine__find_kernel_function_by_name(machine, argv[i], &map);
 
 		if (symbol == NULL) {
-			printf("%s: not found\n", argv[i]);
+			if (!quiet)
+				printf("%s: not found\n", argv[i]);
 			continue;
 		}
 
@@ -47,6 +48,7 @@ int cmd_kallsyms(int argc, const char **argv, const char *prefix __maybe_unused)
 {
 	const struct option options[] = {
 	OPT_INCR('v', "verbose", &verbose, "be more verbose (show counter open errors, etc)"),
+	OPT_BOOLEAN('q', "quiet", &quiet, "Do not show any message"),
 	OPT_END()
 	};
 	const char * const kallsyms_usage[] = {
@@ -57,6 +59,9 @@ int cmd_kallsyms(int argc, const char **argv, const char *prefix __maybe_unused)
 	argc = parse_options(argc, argv, options, kallsyms_usage, 0);
 	if (argc < 1)
 		usage_with_options(kallsyms_usage, options);
+
+	if (quiet)
+		perf_quiet_option();
 
 	symbol_conf.sort_by_name = true;
 	symbol_conf.try_vmlinux_path = (symbol_conf.vmlinux_name == NULL);
