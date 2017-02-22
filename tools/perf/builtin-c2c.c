@@ -103,6 +103,7 @@ static const char *display_str[DISPLAY_MAX] = {
 
 static const struct option c2c_options[] = {
 	OPT_INCR('v', "verbose", &verbose, "be more verbose (show counter open errors, etc)"),
+	OPT_BOOLEAN('q', "quiet", &quiet, "Do not show any message"),
 	OPT_END()
 };
 
@@ -184,7 +185,7 @@ he__get_c2c_hists(struct hist_entry *he,
 static void c2c_he__set_cpu(struct c2c_hist_entry *c2c_he,
 			    struct perf_sample *sample)
 {
-	if (WARN_ONCE(sample->cpu == (unsigned int) -1,
+	if (WARN_ONCE((sample->cpu == (unsigned int) -1) && !quiet,
 		      "WARNING: no sample cpu value"))
 		return;
 
@@ -1932,7 +1933,8 @@ static int setup_nodes(struct perf_session *session)
 		for (cpu = 0; cpu < map->nr; cpu++) {
 			set_bit(map->map[cpu], set);
 
-			if (WARN_ONCE(cpu2node[map->map[cpu]] != -1, "node/cpu topology bug"))
+			if (WARN_ONCE((cpu2node[map->map[cpu]] != -1) && !quiet,
+				      "node/cpu topology bug"))
 				return -EINVAL;
 
 			cpu2node[map->map[cpu]] = node;
@@ -2561,6 +2563,9 @@ static int perf_c2c__report(int argc, const char **argv)
 	if (argc)
 		usage_with_options(report_c2c_usage, options);
 
+	if (quiet)
+		perf_quiet_option();
+
 	if (c2c.stats_only)
 		c2c.use_stdio = true;
 
@@ -2706,6 +2711,9 @@ static int perf_c2c__record(int argc, const char **argv)
 	rec_argv = calloc(rec_argc + 1, sizeof(char *));
 	if (!rec_argv)
 		return -1;
+
+	if (quiet)
+		perf_quiet_option();
 
 	rec_argv[i++] = "record";
 

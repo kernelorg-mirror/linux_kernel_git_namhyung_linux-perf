@@ -44,6 +44,10 @@ RECORD OPTIONS
 --verbose::
 	Be more verbose (show counter open errors, etc).
 
+-q::
+--quiet::
+	Do not show any message.
+
 -l::
 --ldlat::
 	Configure mem-loads latency.
@@ -65,6 +69,10 @@ REPORT OPTIONS
 -v::
 --verbose::
 	Be more verbose (show counter open errors, etc).
+
+-q::
+--quiet::
+	Do not show any message.
 
 -i::
 --input::
