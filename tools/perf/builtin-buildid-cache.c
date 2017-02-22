@@ -311,6 +311,7 @@ int cmd_buildid_cache(int argc, const char **argv,
 	OPT_STRING('u', "update", &update_name_list_str, "file list",
 		    "file(s) to update"),
 	OPT_INCR('v', "verbose", &verbose, "be more verbose"),
+	OPT_BOOLEAN('q', "quiet", &quiet, "Do not show any message"),
 	OPT_END()
 	};
 	const char * const buildid_cache_usage[] = {
@@ -325,6 +326,9 @@ int cmd_buildid_cache(int argc, const char **argv,
 		     !remove_name_list_str && !purge_name_list_str &&
 		     !missing_filename && !update_name_list_str))
 		usage_with_options(buildid_cache_usage, buildid_cache_options);
+
+	if (quiet)
+		perf_quiet_option();
 
 	if (missing_filename) {
 		file.path = missing_filename;
