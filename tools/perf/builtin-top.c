@@ -372,7 +372,7 @@ static void perf_top__prompt_symbol(struct perf_top *top, const char *msg)
 	}
 
 	if (!found) {
-		fprintf(stderr, "Sorry, %s is not active.\n", buf);
+		pr_err("Sorry, %s is not active.\n", buf);
 		sleep(1);
 	} else
 		perf_top__parse_source(top, found);
@@ -1142,6 +1142,7 @@ int cmd_top(int argc, const char **argv, const char *prefix __maybe_unused)
 	OPT_BOOLEAN(0, "stdio", &top.use_stdio, "Use the stdio interface"),
 	OPT_INCR('v', "verbose", &verbose,
 		    "be more verbose (show counter open errors, etc)"),
+	OPT_BOOLEAN('q', "quiet", &quiet, "Do not show any message"),
 	OPT_STRING('s', "sort", &sort_order, "key[,key2...]",
 		   "sort by key(s): pid, comm, dso, symbol, parent, cpu, srcline, ..."
 		   " Please refer the man page for the complete list."),
@@ -1223,6 +1224,9 @@ int cmd_top(int argc, const char **argv, const char *prefix __maybe_unused)
 	argc = parse_options(argc, argv, options, top_usage, 0);
 	if (argc)
 		usage_with_options(top_usage, options);
+
+	if (quiet)
+		perf_quiet_option();
 
 	if (!top.evlist->nr_entries &&
 	    perf_evlist__add_default(top.evlist) < 0) {

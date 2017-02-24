@@ -109,6 +109,10 @@ Default is to monitor all CPUS.
 --verbose::
 	Be more verbose (show counter open errors, etc).
 
+-q::
+--quiet::
+	Do not show any message.  (Suppress -v)
+
 -z::
 --zero::
 	Zero history across display updates.
