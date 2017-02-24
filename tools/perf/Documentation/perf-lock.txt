@@ -42,6 +42,14 @@ COMMON OPTIONS
 --dump-raw-trace::
         Dump raw trace in ASCII.
 
+-q::
+--quiet::
+	Do not show any message.
+
+-f::
+--force::
+        Don't do ownership validation.
+
 REPORT OPTIONS
 --------------
 

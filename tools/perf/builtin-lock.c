@@ -947,30 +947,26 @@ static int __cmd_record(int argc, const char **argv)
 
 int cmd_lock(int argc, const char **argv, const char *prefix __maybe_unused)
 {
-	const struct option info_options[] = {
-	OPT_BOOLEAN('t', "threads", &info_threads,
-		    "dump thread list in perf.data"),
-	OPT_BOOLEAN('m', "map", &info_map,
-		    "map of lock instances (address:name table)"),
-	OPT_BOOLEAN('f', "force", &force, "don't complain, do it"),
-	OPT_END()
-	};
 	const struct option lock_options[] = {
 	OPT_STRING('i', "input", &input_name, "file", "input file name"),
 	OPT_INCR('v', "verbose", &verbose, "be more verbose (show symbol address, etc)"),
 	OPT_BOOLEAN('D', "dump-raw-trace", &dump_trace, "dump raw trace in ASCII"),
+	OPT_BOOLEAN('q', "quiet", &quiet, "Do not show any message"),
+	OPT_BOOLEAN('f', "force", &force, "don't complain, do it"),
 	OPT_END()
 	};
 	const struct option report_options[] = {
 	OPT_STRING('k', "key", &sort_key, "acquired",
 		    "key for sorting (acquired / contended / avg_wait / wait_total / wait_max / wait_min)"),
-	OPT_BOOLEAN('f', "force", &force, "don't complain, do it"),
 	/* TODO: type */
-	OPT_END()
+	OPT_PARENT(lock_options)
 	};
-	const char * const info_usage[] = {
-		"perf lock info [<options>]",
-		NULL
+	const struct option info_options[] = {
+	OPT_BOOLEAN('t', "threads", &info_threads,
+		    "dump thread list in perf.data"),
+	OPT_BOOLEAN('m', "map", &info_map,
+		    "map of lock instances (address:name table)"),
+	OPT_PARENT(lock_options)
 	};
 	const char *const lock_subcommands[] = { "record", "report", "script",
 						 "info", NULL };
@@ -980,6 +976,10 @@ int cmd_lock(int argc, const char **argv, const char *prefix __maybe_unused)
 	};
 	const char * const report_usage[] = {
 		"perf lock report [<options>]",
+		NULL
+	};
+	const char * const info_usage[] = {
+		"perf lock info [<options>]",
 		NULL
 	};
 	unsigned int i;
@@ -993,6 +993,9 @@ int cmd_lock(int argc, const char **argv, const char *prefix __maybe_unused)
 	if (!argc)
 		usage_with_options(lock_usage, lock_options);
 
+	if (quiet)
+		perf_quiet_option();
+
 	if (!strncmp(argv[0], "rec", 3)) {
 		return __cmd_record(argc, argv);
 	} else if (!strncmp(argv[0], "report", 6)) {
@@ -1002,6 +1005,8 @@ int cmd_lock(int argc, const char **argv, const char *prefix __maybe_unused)
 					     report_options, report_usage, 0);
 			if (argc)
 				usage_with_options(report_usage, report_options);
+			if (quiet && verbose >= 0)
+				perf_quiet_option();
 		}
 		rc = __cmd_report(false);
 	} else if (!strcmp(argv[0], "script")) {
@@ -1013,6 +1018,8 @@ int cmd_lock(int argc, const char **argv, const char *prefix __maybe_unused)
 					     info_options, info_usage, 0);
 			if (argc)
 				usage_with_options(info_usage, info_options);
+			if (quiet && verbose >= 0)
+				perf_quiet_option();
 		}
 		/* recycling report_lock_ops */
 		trace_handler = &report_lock_ops;
