@@ -1242,7 +1242,7 @@ static int trace__validate_ev_qualifier(struct trace *trace)
 	trace->ev_qualifier_ids.entries = malloc(trace->ev_qualifier_ids.nr *
 						 sizeof(trace->ev_qualifier_ids.entries[0]));
 
-	if (trace->ev_qualifier_ids.entries == NULL) {
+	if (trace->ev_qualifier_ids.entries == NULL && !quiet) {
 		fputs("Error:\tNot enough memory for allocating events qualifier ids\n",
 		       trace->output);
 		err = -EINVAL;
@@ -1257,7 +1257,8 @@ static int trace__validate_ev_qualifier(struct trace *trace)
 
 		if (id < 0) {
 			if (err == 0) {
-				fputs("Error:\tInvalid syscall ", trace->output);
+				if (!quiet)
+					fputs("Error:\tInvalid syscall ", trace->output);
 				err = -EINVAL;
 			} else {
 				fputs(", ", trace->output);
@@ -1270,8 +1271,10 @@ static int trace__validate_ev_qualifier(struct trace *trace)
 	}
 
 	if (err < 0) {
-		fputs("\nHint:\ttry 'perf list syscalls:sys_enter_*'"
-		      "\nHint:\tand: 'man syscalls'\n", trace->output);
+		if (verbose >= 0) {
+			fputs("\nHint:\ttry 'perf list syscalls:sys_enter_*'"
+			      "\nHint:\tand: 'man syscalls'\n", trace->output);
+		}
 		zfree(&trace->ev_qualifier_ids.entries);
 		trace->ev_qualifier_ids.nr = 0;
 	}
@@ -2604,7 +2607,7 @@ static size_t trace__fprintf_thread_summary(struct trace *trace, FILE *fp)
 	size_t printed = trace__fprintf_threads_header(fp);
 	struct rb_node *nd;
 
-	if (threads == NULL) {
+	if (threads == NULL && !quiet) {
 		fprintf(fp, "%s", "Error sorting output by nr_events!\n");
 		return 0;
 	}
@@ -2761,7 +2764,7 @@ static int trace__parse_events_option(const struct option *opt, const char *str,
 		};
 
 		trace->ev_qualifier = strlist__new(lists[1], &slist_config);
-		if (trace->ev_qualifier == NULL) {
+		if (trace->ev_qualifier == NULL && !quiet) {
 			fputs("Not enough memory to parse event qualifier", trace->output);
 			goto out;
 		}
@@ -2849,6 +2852,7 @@ int cmd_trace(int argc, const char **argv, const char *prefix __maybe_unused)
 		     trace__set_duration),
 	OPT_BOOLEAN(0, "sched", &trace.sched, "show blocking scheduler events"),
 	OPT_INCR('v', "verbose", &verbose, "be more verbose"),
+	OPT_BOOLEAN('q', "quiet", &quiet, "Do not show any message"),
 	OPT_BOOLEAN('T', "time", &trace.full_time,
 		    "Show full timestamp, not time relative to first start"),
 	OPT_BOOLEAN('s', "summary", &trace.summary_only,
@@ -2898,6 +2902,8 @@ int cmd_trace(int argc, const char **argv, const char *prefix __maybe_unused)
 
 	argc = parse_options_subcommand(argc, argv, trace_options, trace_subcommands,
 				 trace_usage, PARSE_OPT_STOP_AT_NON_OPTION);
+	if (quiet)
+		perf_quiet_option();
 
 	err = bpf__setup_stdout(trace.evlist);
 	if (err) {
@@ -2957,7 +2963,8 @@ int cmd_trace(int argc, const char **argv, const char *prefix __maybe_unused)
 	if (output_name != NULL) {
 		err = trace__open_output(&trace, output_name);
 		if (err < 0) {
-			perror("failed to create output file");
+			pr_err("failed to create output file: %s\n",
+			       str_error_r(errno, bf, sizeof(bf)));
 			goto out;
 		}
 	}
@@ -2966,15 +2973,19 @@ int cmd_trace(int argc, const char **argv, const char *prefix __maybe_unused)
 
 	err = target__validate(&trace.opts.target);
 	if (err) {
-		target__strerror(&trace.opts.target, err, bf, sizeof(bf));
-		fprintf(trace.output, "%s", bf);
+		if (!quiet) {
+			target__strerror(&trace.opts.target, err, bf, sizeof(bf));
+			fprintf(trace.output, "%s", bf);
+		}
 		goto out_close;
 	}
 
 	err = target__parse_uid(&trace.opts.target);
 	if (err) {
-		target__strerror(&trace.opts.target, err, bf, sizeof(bf));
-		fprintf(trace.output, "%s", bf);
+		if (!quiet) {
+			target__strerror(&trace.opts.target, err, bf, sizeof(bf));
+			fprintf(trace.output, "%s", bf);
+		}
 		goto out_close;
 	}
 

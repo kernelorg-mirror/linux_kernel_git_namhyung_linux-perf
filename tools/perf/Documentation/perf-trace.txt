@@ -70,6 +70,10 @@ filter out the startup phase of the program, which is often very different.
 --verbose=::
         Verbosity level.
 
+-q::
+--quiet::
+	Do not show any message.  (Suppress -v)
+
 --no-inherit::
 	Child tasks do not inherit counters.
 
