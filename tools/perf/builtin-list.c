@@ -32,6 +32,7 @@ int cmd_list(int argc, const char **argv, const char *prefix __maybe_unused)
 			    "Print longer event descriptions."),
 		OPT_INCR(0, "debug", &verbose,
 			     "Enable debugging output"),
+		OPT_BOOLEAN('q', "quiet", &quiet, "Do not show any message"),
 		OPT_END()
 	};
 	const char * const list_usage[] = {
@@ -44,9 +45,12 @@ int cmd_list(int argc, const char **argv, const char *prefix __maybe_unused)
 	argc = parse_options(argc, argv, list_options, list_usage,
 			     PARSE_OPT_STOP_AT_NON_OPTION);
 
+	if (quiet)
+		perf_quiet_option();
+
 	setup_pager();
 
-	if (!raw_dump && pager_in_use())
+	if (!raw_dump && pager_in_use() && !quiet)
 		printf("\nList of pre-defined events (to be used in -e):\n\n");
 
 	if (argc == 0) {
@@ -94,7 +98,8 @@ int cmd_list(int argc, const char **argv, const char *prefix __maybe_unused)
 			free(s);
 		} else {
 			if (asprintf(&s, "*%s*", argv[i]) < 0) {
-				printf("Critical: Not enough memory! Trying to continue...\n");
+				if (!quiet)
+					printf("Critical: Not enough memory! Trying to continue...\n");
 				continue;
 			}
 			print_symbol_events(s, PERF_TYPE_HARDWARE,
