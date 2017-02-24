@@ -70,6 +70,7 @@ static int __cmd_record(int argc, const char **argv, struct perf_mem *mem)
 	OPT_UINTEGER(0, "ldlat", &perf_mem_events__loads_ldlat, "mem-loads latency"),
 	OPT_INCR('v', "verbose", &verbose,
 		 "be more verbose (show counter open errors, etc)"),
+	OPT_BOOLEAN('q', "quiet", &quiet, "Do not show any message"),
 	OPT_BOOLEAN('U', "all-user", &all_user, "collect only user level data"),
 	OPT_BOOLEAN('K', "all-kernel", &all_kernel, "collect only kernel level data"),
 	OPT_END()
@@ -82,6 +83,9 @@ static int __cmd_record(int argc, const char **argv, struct perf_mem *mem)
 	rec_argv = calloc(rec_argc + 1, sizeof(char *));
 	if (!rec_argv)
 		return -1;
+
+	if (quiet)
+		perf_quiet_option();
 
 	rec_argv[i++] = "record";
 
@@ -144,7 +148,7 @@ dump_raw_samples(struct perf_tool *tool,
 	struct addr_location al;
 	const char *fmt;
 
-	if (machine__resolve(machine, &al, sample) < 0) {
+	if (machine__resolve(machine, &al, sample) < 0 && !quiet) {
 		fprintf(stderr, "problem processing %d event, skipping it.\n",
 				event->header.type);
 		return -1;
