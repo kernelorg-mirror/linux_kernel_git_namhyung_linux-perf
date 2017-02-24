@@ -1630,6 +1630,7 @@ static const struct option stat_options[] = {
 	OPT_BOOLEAN('c', "scale", &stat_config.scale, "scale/normalize counters"),
 	OPT_INCR('v', "verbose", &verbose,
 		    "be more verbose (show counter open errors, etc)"),
+	OPT_BOOLEAN('q', "quiet", &quiet, "Do not show any message"),
 	OPT_INTEGER('r', "repeat", &run_count,
 		    "repeat command and print average + stddev (max: 100, forever: 0)"),
 	OPT_BOOLEAN('n', "null", &null_run,
@@ -2163,6 +2164,9 @@ static int __cmd_record(int argc, const char **argv)
 	argc = parse_options(argc, argv, stat_options, stat_record_usage,
 			     PARSE_OPT_STOP_AT_NON_OPTION);
 
+	if (quiet)
+		perf_quiet_option();
+
 	if (output_name)
 		file->path = output_name;
 
@@ -2409,6 +2413,9 @@ int cmd_stat(int argc, const char **argv, const char *prefix __maybe_unused)
 					(const char **) stat_usage,
 					PARSE_OPT_STOP_AT_NON_OPTION);
 	perf_stat__init_shadow_stats();
+
+	if (quiet)
+		perf_quiet_option();
 
 	if (csv_sep) {
 		csv_output = true;

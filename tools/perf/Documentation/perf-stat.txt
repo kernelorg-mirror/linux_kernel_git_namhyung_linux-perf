@@ -105,6 +105,10 @@ This option is only valid in system-wide mode.
 --verbose::
         be more verbose (show counter open errors, etc)
 
+-q::
+--quiet::
+	Do not show any message.  (Suppress -v)
+
 -x SEP::
 --field-separator SEP::
 print counts using a CSV-style output to make it easy to import directly into
