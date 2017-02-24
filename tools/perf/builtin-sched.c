@@ -3297,6 +3297,7 @@ int cmd_sched(int argc, const char **argv, const char *prefix __maybe_unused)
 	OPT_BOOLEAN('D', "dump-raw-trace", &dump_trace,
 		    "dump raw trace in ASCII"),
 	OPT_BOOLEAN('f', "force", &sched.force, "don't complain, do it"),
+	OPT_BOOLEAN('q', "quiet", &quiet, "Do not show any message"),
 	OPT_END()
 	};
 	const struct option latency_options[] = {
@@ -3396,6 +3397,9 @@ int cmd_sched(int argc, const char **argv, const char *prefix __maybe_unused)
 	if (!argc)
 		usage_with_options(sched_usage, sched_options);
 
+	if (quiet)
+		perf_quiet_option();
+
 	/*
 	 * Aliased to 'perf script' for now:
 	 */
@@ -3410,6 +3414,8 @@ int cmd_sched(int argc, const char **argv, const char *prefix __maybe_unused)
 			argc = parse_options(argc, argv, latency_options, latency_usage, 0);
 			if (argc)
 				usage_with_options(latency_usage, latency_options);
+			if (quiet && verbose >= 0)
+				perf_quiet_option();
 		}
 		setup_sorting(&sched, latency_options, latency_usage);
 		return perf_sched__lat(&sched);
@@ -3418,6 +3424,8 @@ int cmd_sched(int argc, const char **argv, const char *prefix __maybe_unused)
 			argc = parse_options(argc, argv, map_options, map_usage, 0);
 			if (argc)
 				usage_with_options(map_usage, map_options);
+			if (quiet && verbose >= 0)
+				perf_quiet_option();
 		}
 		sched.tp_handler = &map_ops;
 		setup_sorting(&sched, latency_options, latency_usage);
@@ -3428,6 +3436,8 @@ int cmd_sched(int argc, const char **argv, const char *prefix __maybe_unused)
 			argc = parse_options(argc, argv, replay_options, replay_usage, 0);
 			if (argc)
 				usage_with_options(replay_usage, replay_options);
+			if (quiet && verbose >= 0)
+				perf_quiet_option();
 		}
 		return perf_sched__replay(&sched);
 	} else if (!strcmp(argv[0], "timehist")) {
@@ -3436,6 +3446,8 @@ int cmd_sched(int argc, const char **argv, const char *prefix __maybe_unused)
 					     timehist_usage, 0);
 			if (argc)
 				usage_with_options(timehist_usage, timehist_options);
+			if (quiet && verbose >= 0)
+				perf_quiet_option();
 		}
 		if (sched.show_wakeups && sched.summary_only) {
 			pr_err(" Error: -s and -w are mutually exclusive.\n");

@@ -70,9 +70,17 @@ OPTIONS
 --verbose::
         Be more verbose. (show symbol address, etc)
 
+-q::
+--quiet::
+	Do not show any message.  (Suppress -v)
+
 -D::
 --dump-raw-trace=::
         Display verbose dump of the sched data.
+
+-f::
+--force::
+        Don't do ownership validation.
 
 OPTIONS for 'perf sched map'
 ----------------------------
