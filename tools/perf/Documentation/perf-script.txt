@@ -75,6 +75,14 @@ OPTIONS
 <command>...::
 	Any command you can specify in a shell.
 
+-v::
+--verbose::
+        Be more verbose. (show debug messages, etc)
+
+-q::
+--quiet::
+	Do not show any message.  (Suppress -v)
+
 -D::
 --dump-raw-trace=::
         Display verbose dump of the trace data.
