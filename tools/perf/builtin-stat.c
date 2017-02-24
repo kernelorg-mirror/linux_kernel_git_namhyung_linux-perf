@@ -555,7 +555,8 @@ static int __run_perf_stat(int argc, const char **argv)
 	if (forks) {
 		if (perf_evlist__prepare_workload(evsel_list, &target, argv, is_pipe,
 						  workload_exec_failed_signal) < 0) {
-			perror("failed to prepare workload");
+			pr_err("failed to prepare workload: %s\n",
+			       str_error_r(errno, msg, sizeof(msg)));
 			return -1;
 		}
 		child_pid = evsel_list->workload.pid;
@@ -608,14 +609,14 @@ try_again:
 	}
 
 	if (perf_evlist__apply_filters(evsel_list, &counter)) {
-		error("failed to set filter \"%s\" on event %s with %d (%s)\n",
+		pr_err("failed to set filter \"%s\" on event %s with %d (%s)\n",
 			counter->filter, perf_evsel__name(counter), errno,
 			str_error_r(errno, msg, sizeof(msg)));
 		return -1;
 	}
 
 	if (perf_evlist__apply_drv_configs(evsel_list, &counter, &err_term)) {
-		error("failed to set config \"%s\" on event %s with %d (%s)\n",
+		pr_err("failed to set config \"%s\" on event %s with %d (%s)\n",
 		      err_term->val.drv_cfg, perf_evsel__name(counter), errno,
 		      str_error_r(errno, msg, sizeof(msg)));
 		return -1;
@@ -1725,18 +1726,21 @@ static int perf_stat__get_core_cached(struct cpu_map *map, int idx)
 static int perf_stat_init_aggr_mode(void)
 {
 	int nr;
+	char errbuf[STRERR_BUFSIZE];
 
 	switch (stat_config.aggr_mode) {
 	case AGGR_SOCKET:
 		if (cpu_map__build_socket_map(evsel_list->cpus, &aggr_map)) {
-			perror("cannot build socket map");
+			pr_err("cannot build socket map: %s\n",
+			       str_error_r(errno, errbuf, sizeof(errbuf)));
 			return -1;
 		}
 		aggr_get_id = perf_stat__get_socket_cached;
 		break;
 	case AGGR_CORE:
 		if (cpu_map__build_core_map(evsel_list->cpus, &aggr_map)) {
-			perror("cannot build core map");
+			pr_err("cannot build core map: %s\n",
+			       str_error_r(errno, errbuf, sizeof(errbuf)));
 			return -1;
 		}
 		aggr_get_id = perf_stat__get_core_cached;
@@ -1835,18 +1839,21 @@ static int perf_stat__get_core_file(struct cpu_map *map, int idx)
 static int perf_stat_init_aggr_mode_file(struct perf_stat *st)
 {
 	struct perf_env *env = &st->session->header.env;
+	char errbuf[STRERR_BUFSIZE];
 
 	switch (stat_config.aggr_mode) {
 	case AGGR_SOCKET:
 		if (perf_env__build_socket_map(env, evsel_list->cpus, &aggr_map)) {
-			perror("cannot build socket map");
+			pr_err("cannot build socket map: %s\n",
+			       str_error_r(errno, errbuf, sizeof(errbuf)));
 			return -1;
 		}
 		aggr_get_id = perf_stat__get_socket_file;
 		break;
 	case AGGR_CORE:
 		if (perf_env__build_core_map(env, evsel_list->cpus, &aggr_map)) {
-			perror("cannot build core map");
+			pr_err("cannot build core map: %s\n",
+			       str_error_r(errno, errbuf, sizeof(errbuf)));
 			return -1;
 		}
 		aggr_get_id = perf_stat__get_core_file;
@@ -2042,7 +2049,7 @@ static int add_default_attributes(void)
 		else
 			err = parse_events(evsel_list, transaction_limited_attrs, NULL);
 		if (err) {
-			fprintf(stderr, "Cannot set up transaction events\n");
+			pr_err("Cannot set up transaction events\n");
 			return -1;
 		}
 		return 0;
@@ -2075,14 +2082,13 @@ static int add_default_attributes(void)
 				arch_topdown_group_warn();
 			err = parse_events(evsel_list, str, NULL);
 			if (err) {
-				fprintf(stderr,
-					"Cannot set up top down events %s: %d\n",
+				pr_err("Cannot set up top down events %s: %d\n",
 					str, err);
 				free(str);
 				return -1;
 			}
 		} else {
-			fprintf(stderr, "System does not support topdown\n");
+			pr_err("System does not support topdown\n");
 			return -1;
 		}
 		free(str);
@@ -2390,6 +2396,7 @@ int cmd_stat(int argc, const char **argv, const char *prefix __maybe_unused)
 	FILE *output = stderr;
 	unsigned int interval;
 	const char * const stat_subcommands[] = { "record", "report" };
+	char errbuf[STRERR_BUFSIZE];
 
 	setlocale(LC_ALL, "");
 
@@ -2426,24 +2433,24 @@ int cmd_stat(int argc, const char **argv, const char *prefix __maybe_unused)
 		output = NULL;
 
 	if (output_name && output_fd) {
-		fprintf(stderr, "cannot use both --output and --log-fd\n");
+		pr_err("cannot use both --output and --log-fd\n");
 		parse_options_usage(stat_usage, stat_options, "o", 1);
 		parse_options_usage(NULL, stat_options, "log-fd", 0);
 		goto out;
 	}
 
 	if (metric_only && stat_config.aggr_mode == AGGR_THREAD) {
-		fprintf(stderr, "--metric-only is not supported with --per-thread\n");
+		pr_err("--metric-only is not supported with --per-thread\n");
 		goto out;
 	}
 
 	if (metric_only && run_count > 1) {
-		fprintf(stderr, "--metric-only is not supported with -r\n");
+		pr_err("--metric-only is not supported with -r\n");
 		goto out;
 	}
 
 	if (output_fd < 0) {
-		fprintf(stderr, "argument to --log-fd must be a > 0\n");
+		pr_err("argument to --log-fd must be a > 0\n");
 		parse_options_usage(stat_usage, stat_options, "log-fd", 0);
 		goto out;
 	}
@@ -2454,7 +2461,8 @@ int cmd_stat(int argc, const char **argv, const char *prefix __maybe_unused)
 
 		output = fopen(output_name, mode);
 		if (!output) {
-			perror("failed to create output file");
+			pr_err("failed to create output file: %s\n",
+			       str_error_r(errno, errbuf, sizeof(errbuf)));
 			return -1;
 		}
 		clock_gettime(CLOCK_REALTIME, &tm);
@@ -2463,7 +2471,8 @@ int cmd_stat(int argc, const char **argv, const char *prefix __maybe_unused)
 		mode = append_file ? "a" : "w";
 		output = fdopen(output_fd, mode);
 		if (!output) {
-			perror("Failed opening logfd");
+			pr_err("Failed opening logfd: %s\n",
+			       str_error_r(errno, errbuf, sizeof(errbuf)));
 			return -errno;
 		}
 	}
@@ -2476,7 +2485,7 @@ int cmd_stat(int argc, const char **argv, const char *prefix __maybe_unused)
 	if (csv_output) {
 		/* User explicitly passed -B? */
 		if (big_num_opt == 1) {
-			fprintf(stderr, "-B option not supported with -x\n");
+			pr_err("-B option not supported with -x\n");
 			parse_options_usage(stat_usage, stat_options, "B", 1);
 			parse_options_usage(NULL, stat_options, "x", 1);
 			goto out;
@@ -2497,7 +2506,7 @@ int cmd_stat(int argc, const char **argv, const char *prefix __maybe_unused)
 	}
 
 	if ((stat_config.aggr_mode == AGGR_THREAD) && !target__has_task(&target)) {
-		fprintf(stderr, "The --per-thread option is only available "
+		pr_err("The --per-thread option is only available "
 			"when monitoring via -p -t options.\n");
 		parse_options_usage(NULL, stat_options, "p", 1);
 		parse_options_usage(NULL, stat_options, "t", 1);
@@ -2511,7 +2520,7 @@ int cmd_stat(int argc, const char **argv, const char *prefix __maybe_unused)
 	if (((stat_config.aggr_mode != AGGR_GLOBAL &&
 	      stat_config.aggr_mode != AGGR_THREAD) || nr_cgroups) &&
 	    !target__has_cpu(&target)) {
-		fprintf(stderr, "both cgroup and no-aggregation "
+		pr_err("both cgroup and no-aggregation "
 			"modes only available in system-wide mode\n");
 
 		parse_options_usage(stat_usage, stat_options, "G", 1);
@@ -2531,7 +2540,8 @@ int cmd_stat(int argc, const char **argv, const char *prefix __maybe_unused)
 			parse_options_usage(stat_usage, stat_options, "p", 1);
 			parse_options_usage(NULL, stat_options, "t", 1);
 		} else if (target__has_cpu(&target)) {
-			perror("failed to parse CPUs map");
+			pr_err("failed to parse CPUs map: %s\n",
+			       str_error_r(errno, errbuf, sizeof(errbuf)));
 			parse_options_usage(stat_usage, stat_options, "C", 1);
 			parse_options_usage(NULL, stat_options, "a", 1);
 		}
