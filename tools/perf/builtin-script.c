@@ -1394,14 +1394,14 @@ static int parse_scriptname(const struct option *opt __maybe_unused,
 	if (script) {
 		len = script - str;
 		if (len >= PATH_MAX) {
-			fprintf(stderr, "invalid language specifier");
+			pr_err("invalid language specifier");
 			return -1;
 		}
 		strncpy(spec, str, len);
 		spec[len] = '\0';
 		scripting_ops = script_spec__lookup(spec);
 		if (!scripting_ops) {
-			fprintf(stderr, "invalid language specifier");
+			pr_err("invalid language specifier");
 			return -1;
 		}
 		script++;
@@ -1409,12 +1409,12 @@ static int parse_scriptname(const struct option *opt __maybe_unused,
 		script = str;
 		ext = strrchr(script, '.');
 		if (!ext) {
-			fprintf(stderr, "invalid script extension");
+			pr_err("invalid script extension");
 			return -1;
 		}
 		scripting_ops = script_spec__lookup(++ext);
 		if (!scripting_ops) {
-			fprintf(stderr, "invalid script extension");
+			pr_err("invalid script extension");
 			return -1;
 		}
 	}
@@ -1472,8 +1472,7 @@ static int parse_output_fields(const struct option *opt __maybe_unused,
 	} else {
 		tok = str;
 		if (strlen(str) == 0) {
-			fprintf(stderr,
-				"Cannot set fields to 'none' for all event types.\n");
+			pr_err("Cannot set fields to 'none' for all event types.\n");
 			rc = -EINVAL;
 			goto out;
 		}
@@ -1498,7 +1497,7 @@ static int parse_output_fields(const struct option *opt __maybe_unused,
 			continue;
 		}
 		if (i == imax) {
-			fprintf(stderr, "Invalid field requested.\n");
+			pr_err("Invalid field requested.\n");
 			rc = -EINVAL;
 			goto out;
 		}
@@ -1516,7 +1515,7 @@ static int parse_output_fields(const struct option *opt __maybe_unused,
 			}
 		} else {
 			if (output[type].invalid_fields & all_output_options[i].field) {
-				fprintf(stderr, "\'%s\' not valid for %s events.\n",
+				pr_err("\'%s\' not valid for %s events.\n",
 					 all_output_options[i].str, event_type(type));
 
 				rc = -EINVAL;
@@ -1722,8 +1721,7 @@ static int list_available_scripts(const struct option *opt __maybe_unused,
 
 	scripts_dir = opendir(scripts_path);
 	if (!scripts_dir) {
-		fprintf(stdout,
-			"open(%s) failed.\n"
+		pr_err("open(%s) failed.\n"
 			"Check \"PERF_EXEC_PATH\" env to set scripts dir.\n",
 			scripts_path);
 		exit(-1);
@@ -2205,6 +2203,7 @@ int cmd_script(int argc, const char **argv, const char *prefix __maybe_unused)
 		"perf script [<options>] <top-script> [script-args]",
 		NULL
 	};
+	char errbuf[STRERR_BUFSIZE];
 
 	setup_scripting();
 
@@ -2223,8 +2222,7 @@ int cmd_script(int argc, const char **argv, const char *prefix __maybe_unused)
 	if (argc > 1 && !strncmp(argv[0], "rep", strlen("rep"))) {
 		rep_script_path = get_script_path(argv[1], REPORT_SUFFIX);
 		if (!rep_script_path) {
-			fprintf(stderr,
-				"Please specify a valid report script"
+			pr_err("Please specify a valid report script"
 				"(see 'perf script -l' for listing)\n");
 			return -1;
 		}
@@ -2267,13 +2265,15 @@ int cmd_script(int argc, const char **argv, const char *prefix __maybe_unused)
 		}
 
 		if (pipe(live_pipe) < 0) {
-			perror("failed to create pipe");
+			pr_err("failed to create pipe: %s\n",
+			       str_error_r(errno, errbuf, sizeof(errbuf)));
 			return -1;
 		}
 
 		pid = fork();
 		if (pid < 0) {
-			perror("failed to fork");
+			pr_err("failed to fork: %s\n",
+			       str_error_r(errno, errbuf, sizeof(errbuf)));
 			return -1;
 		}
 
@@ -2424,8 +2424,7 @@ int cmd_script(int argc, const char **argv, const char *prefix __maybe_unused)
 		int input;
 
 		if (output_set_by_user()) {
-			fprintf(stderr,
-				"custom fields not supported for generated scripts");
+			pr_err("custom fields not supported for generated scripts");
 			err = -EINVAL;
 			goto out_delete;
 		}
@@ -2433,24 +2432,26 @@ int cmd_script(int argc, const char **argv, const char *prefix __maybe_unused)
 		input = open(file.path, O_RDONLY);	/* input_name */
 		if (input < 0) {
 			err = -errno;
-			perror("failed to open file");
+			pr_err("failed to open file: %s\n",
+			       str_error_r(errno, errbuf, sizeof(errbuf)));
 			goto out_delete;
 		}
 
 		err = fstat(input, &perf_stat);
 		if (err < 0) {
-			perror("failed to stat file");
+			pr_err("failed to stat file: %s\n",
+			       str_error_r(errno, errbuf, sizeof(errbuf)));
 			goto out_delete;
 		}
 
 		if (!perf_stat.st_size) {
-			fprintf(stderr, "zero-sized file, nothing to do!\n");
+			pr_err("zero-sized file, nothing to do!\n");
 			goto out_delete;
 		}
 
 		scripting_ops = script_spec__lookup(generate_script_lang);
 		if (!scripting_ops) {
-			fprintf(stderr, "invalid language specifier");
+			pr_err("invalid language specifier");
 			err = -ENOENT;
 			goto out_delete;
 		}
