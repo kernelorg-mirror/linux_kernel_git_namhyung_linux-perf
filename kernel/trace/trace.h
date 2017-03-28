@@ -898,6 +898,7 @@ void ftrace_init_tracefs_toplevel(struct trace_array *tr,
 				  struct dentry *d_tracer);
 int init_function_trace(void);
 void ftrace_pid_reset(struct trace_array *tr, bool update);
+void ftrace_pid_follow_fork(struct trace_array *tr, bool enable);
 #else
 static inline int ftrace_trace_task(struct trace_array *tr)
 {
@@ -918,6 +919,7 @@ static inline void ftrace_init_tracefs(struct trace_array *tr, struct dentry *d)
 static inline void ftrace_init_tracefs_toplevel(struct trace_array *tr, struct dentry *d) { }
 static inline int init_function_trace(void) { return 0; }
 static inline void ftrace_pid_reset(struct trace_array *tr, bool update) { }
+static inline void ftrace_pid_follow_fork(struct trace_array *tr, bool enable) { }
 /* ftace_func_t type is not defined, use macro instead of static inline */
 #define ftrace_init_array_ops(tr, func) do { } while (0)
 #endif /* CONFIG_FUNCTION_TRACER */
@@ -991,11 +993,13 @@ extern int trace_get_user(struct trace_parser *parser, const char __user *ubuf,
 
 #ifdef CONFIG_FUNCTION_TRACER
 # define FUNCTION_FLAGS						\
-		C(FUNCTION,		"function-trace"),
+		C(FUNCTION,		"function-trace"),	\
+		C(FUNC_FORK,		"function-fork"),
 # define FUNCTION_DEFAULT_FLAGS		TRACE_ITER_FUNCTION
 #else
 # define FUNCTION_FLAGS
 # define FUNCTION_DEFAULT_FLAGS		0UL
+# define TRACE_ITER_FUNC_FORK		0UL
 #endif
 
 #ifdef CONFIG_STACKTRACE
