@@ -248,6 +248,57 @@ bool dso__needs_decompress(struct dso *dso)
 		dso->symtab_type == DSO_BINARY_TYPE__GUEST_KMODULE_COMP;
 }
 
+static int decompress_kmodule(struct dso *dso, const char *name, char *tmpbuf)
+{
+	int fd = -1;
+	struct kmod_path m;
+
+	if (!dso__needs_decompress(dso))
+		return -1;
+
+	if (kmod_path__parse_ext(&m, dso->long_name) || !m.comp)
+		return -1;
+
+	fd = mkstemp(tmpbuf);
+	if (fd < 0) {
+		dso->load_errno = errno;
+		goto out;
+	}
+
+	if (!decompress_to_file(m.ext, name, fd)) {
+		dso->load_errno = DSO_LOAD_ERRNO__DECOMPRESSION_FAILURE;
+		close(fd);
+		fd = -1;
+	}
+
+out:
+	free(m.ext);
+	return fd;
+}
+
+int dso__decompress_kmodule_fd(struct dso *dso, const char *name)
+{
+	char tmpbuf[] = KMOD_DECOMP_NAME;
+	int fd;
+
+	fd = decompress_kmodule(dso, name, tmpbuf);
+	unlink(tmpbuf);
+	return fd;
+}
+
+int dso__decompress_kmodule_path(struct dso *dso, const char *name,
+				 char *pathname, size_t len)
+{
+	char tmpbuf[] = KMOD_DECOMP_NAME;
+	int fd;
+
+	fd = decompress_kmodule(dso, name, tmpbuf);
+	close(fd);
+
+	strncpy(pathname, tmpbuf, len);
+	return fd >= 0 ? 0 : fd;
+}
+
 /*
  * Parses kernel module specified in @path and updates
  * @m argument like:
