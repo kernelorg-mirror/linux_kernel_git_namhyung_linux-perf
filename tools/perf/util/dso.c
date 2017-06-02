@@ -463,8 +463,22 @@ static int __open_dso(struct dso *dso, struct machine *machine)
 		return -EINVAL;
 	}
 
-	if (!is_regular_file(name))
+	if (!is_regular_file(name)) {
+		free(name);
 		return -EINVAL;
+	}
+
+	if (dso__needs_decompress(dso)) {
+		char newpath[KMOD_DECOMP_LEN];
+		size_t len = sizeof(newpath);
+
+		if (dso__decompress_kmodule_path(dso, name, newpath, len) < 0) {
+			free(name);
+			return -1;
+		}
+
+		strcpy(name, newpath);
+	}
 
 	fd = do_open(name);
 	free(name);
