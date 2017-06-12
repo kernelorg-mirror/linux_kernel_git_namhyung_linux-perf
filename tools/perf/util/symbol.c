@@ -36,6 +36,7 @@ char **vmlinux_path;
 
 struct symbol_conf symbol_conf = {
 	.use_modules		= true,
+	.use_kcore		= true,
 	.try_vmlinux_path	= true,
 	.annotate_src		= true,
 	.demangle		= true,
@@ -1324,7 +1325,7 @@ int __dso__load_kallsyms(struct dso *dso, const char *filename,
 int dso__load_kallsyms(struct dso *dso, const char *filename,
 		       struct map *map)
 {
-	return __dso__load_kallsyms(dso, filename, map, false);
+	return __dso__load_kallsyms(dso, filename, map, !symbol_conf.use_kcore);
 }
 
 static int dso__load_perf_map(struct dso *dso, struct map *map)
