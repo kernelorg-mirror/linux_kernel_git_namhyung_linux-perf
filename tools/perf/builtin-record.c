@@ -1671,6 +1671,8 @@ static struct option __record_options[] = {
 		    "Parse options then exit"),
 	OPT_BOOLEAN(0, "use-kcore", &symbol_conf.use_kcore,
 		    "Use /proc/kcore for object code"),
+	OPT_STRING(0, "module-dir", &symbol_conf.extra_module_path, "path",
+		   "directory name where extra modules are located"),
 	OPT_END()
 };
 

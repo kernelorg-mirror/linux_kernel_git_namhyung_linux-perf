@@ -480,6 +480,9 @@ Implies --tail-synthesize.
 --use-kcore::
 Use /proc/kcore for symbols and object code reading
 
+--module-dir=PATH::
+Directory name where extra modules are located.
+
 SEE ALSO
 --------
 linkperf:perf-stat[1], linkperf:perf-list[1]

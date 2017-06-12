@@ -1108,6 +1108,7 @@ static int machine__set_modules_path(struct machine *machine)
 {
 	char *version;
 	char modules_path[PATH_MAX];
+	int ret;
 
 	version = get_kernel_version(machine->root_dir);
 	if (!version)
@@ -1117,7 +1118,19 @@ static int machine__set_modules_path(struct machine *machine)
 		 machine->root_dir, version);
 	free(version);
 
-	return map_groups__set_modules_path_dir(&machine->kmaps, modules_path, 0);
+	ret = map_groups__set_modules_path_dir(&machine->kmaps, modules_path, 0);
+	if (ret < 0)
+		return ret;
+
+	if (symbol_conf.extra_module_path) {
+		snprintf(modules_path, sizeof(modules_path), "%s/%s",
+			 machine->root_dir, symbol_conf.extra_module_path);
+
+		ret = map_groups__set_modules_path_dir(&machine->kmaps,
+						       modules_path, 0);
+	}
+
+	return ret;
 }
 int __weak arch__fix_module_text_start(u64 *start __maybe_unused,
 				const char *name __maybe_unused)
