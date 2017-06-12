@@ -1024,12 +1024,6 @@ static char *get_kernel_version(const char *root_dir)
 	return strdup(name);
 }
 
-static bool is_kmod_dso(struct dso *dso)
-{
-	return dso->symtab_type == DSO_BINARY_TYPE__SYSTEM_PATH_KMODULE ||
-	       dso->symtab_type == DSO_BINARY_TYPE__GUEST_KMODULE;
-}
-
 static int map_groups__set_module_path(struct map_groups *mg, const char *path,
 				       struct kmod_path *m)
 {
@@ -1045,15 +1039,6 @@ static int map_groups__set_module_path(struct map_groups *mg, const char *path,
 		return -ENOMEM;
 
 	dso__set_long_name(map->dso, long_name, true);
-	dso__kernel_module_get_build_id(map->dso, "");
-
-	/*
-	 * Full name could reveal us kmod compression, so
-	 * we need to update the symtab_type if needed.
-	 */
-	if (m->comp && is_kmod_dso(map->dso))
-		map->dso->symtab_type++;
-
 	return 0;
 }
 
