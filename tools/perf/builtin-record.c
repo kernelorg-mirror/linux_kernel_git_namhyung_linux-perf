@@ -1669,6 +1669,8 @@ static struct option __record_options[] = {
 			  "signal"),
 	OPT_BOOLEAN(0, "dry-run", &dry_run,
 		    "Parse options then exit"),
+	OPT_BOOLEAN(0, "use-kcore", &symbol_conf.use_kcore,
+		    "Use /proc/kcore for object code"),
 	OPT_END()
 };
 
@@ -1704,6 +1706,9 @@ int cmd_record(int argc, const char **argv)
 	rec->evlist = perf_evlist__new();
 	if (rec->evlist == NULL)
 		return -ENOMEM;
+
+	/* default to not use kcore, user can change it by --use-kcore option */
+	symbol_conf.use_kcore = false;
 
 	err = perf_config(perf_record_config, rec);
 	if (err)

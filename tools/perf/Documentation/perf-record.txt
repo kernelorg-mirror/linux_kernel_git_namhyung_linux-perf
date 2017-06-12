@@ -477,6 +477,9 @@ config terms. For example: 'cycles/overwrite/' and 'instructions/no-overwrite/'.
 
 Implies --tail-synthesize.
 
+--use-kcore::
+Use /proc/kcore for symbols and object code reading
+
 SEE ALSO
 --------
 linkperf:perf-stat[1], linkperf:perf-list[1]

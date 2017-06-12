@@ -233,6 +233,7 @@ fi
 
 case "$PERF_SUB_COMMAND" in
 "record")
+	PERF_OPTIONS+=("--use-kcore")
 	while [ "$1" != "--" ] ; do
 		PERF_OPTIONS+=("$1")
 		shift || break
