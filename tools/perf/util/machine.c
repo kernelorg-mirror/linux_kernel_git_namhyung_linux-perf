@@ -656,6 +656,9 @@ struct map *machine__findnew_module_map(struct machine *machine, u64 start,
 
 	map_groups__insert(&machine->kmaps, map);
 
+	if (dso->has_build_id)
+		map__load(map);
+
 	/* Put the map here because map_groups__insert alread got it */
 	map__put(map);
 out:
