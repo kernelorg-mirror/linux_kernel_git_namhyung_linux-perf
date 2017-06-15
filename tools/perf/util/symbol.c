@@ -1832,7 +1832,7 @@ do_kallsyms:
 		dso->binary_type = DSO_BINARY_TYPE__KALLSYMS;
 		dso__set_long_name(dso, DSO__NAME_KALLSYMS, false);
 		map__fixup_start(map);
-		map__fixup_end(map);
+		__map_groups__fixup_end(map->groups, map->type);
 	}
 
 	return err;
@@ -1880,7 +1880,7 @@ static int dso__load_guest_kernel_sym(struct dso *dso, struct map *map)
 		machine__mmap_name(machine, path, sizeof(path));
 		dso__set_long_name(dso, strdup(path), true);
 		map__fixup_start(map);
-		map__fixup_end(map);
+		__map_groups__fixup_end(map->groups, map->type);
 	}
 
 	return err;
