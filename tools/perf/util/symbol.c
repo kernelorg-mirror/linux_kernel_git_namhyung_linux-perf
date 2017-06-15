@@ -787,11 +787,12 @@ static int dso__split_kallsyms(struct dso *dso, struct map *map, u64 delta)
 					curr_map = map;
 					goto discard_symbol;
 				}
-
-				if (curr_map->dso->loaded &&
-				    !machine__is_default_guest(machine))
-					goto discard_symbol;
 			}
+
+			if (curr_map->dso->loaded &&
+			    !machine__is_default_guest(machine))
+				goto discard_symbol;
+
 			/*
 			 * So that we look just like we get from .ko files,
 			 * i.e. not prelinked, relative to map->start.
