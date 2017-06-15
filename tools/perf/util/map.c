@@ -265,7 +265,7 @@ void map__fixup_start(struct map *map)
 	struct rb_node *nd = rb_first(symbols);
 	if (nd != NULL) {
 		struct symbol *sym = rb_entry(nd, struct symbol, rb_node);
-		map->start = sym->start;
+		map->start = map->unmap_ip(map, sym->start);
 	}
 }
 
@@ -275,7 +275,7 @@ void map__fixup_end(struct map *map)
 	struct rb_node *nd = rb_last(symbols);
 	if (nd != NULL) {
 		struct symbol *sym = rb_entry(nd, struct symbol, rb_node);
-		map->end = sym->end;
+		map->end = map->unmap_ip(map, sym->end);
 	}
 }
 
