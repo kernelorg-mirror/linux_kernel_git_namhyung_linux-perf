@@ -1155,6 +1155,7 @@ static int dso__load_kcore(struct dso *dso, struct map *map,
 	int err, fd;
 	char kcore_filename[PATH_MAX];
 	struct symbol *sym;
+	struct map_groups old_mg;
 
 	if (!kmaps)
 		return -EINVAL;
@@ -1196,15 +1197,8 @@ static int dso__load_kcore(struct dso *dso, struct map *map,
 		goto out_err;
 	}
 
-	/* Remove old maps */
-	old_map = map_groups__first(kmaps, map->type);
-	while (old_map) {
-		struct map *next = map_groups__next(old_map);
-
-		if (old_map != map)
-			map_groups__remove(kmaps, old_map);
-		old_map = next;
-	}
+	old_mg = *kmaps;
+	kmaps->maps[map->type].entries = RB_ROOT;
 
 	/* Find the kernel map using the first symbol */
 	sym = dso__first_symbol(dso, map->type);
@@ -1223,22 +1217,29 @@ static int dso__load_kcore(struct dso *dso, struct map *map,
 	while (!list_empty(&md.maps)) {
 		new_map = list_entry(md.maps.next, struct map, node);
 		list_del_init(&new_map->node);
-		if (new_map == replacement_map) {
-			map->start	= new_map->start;
-			map->end	= new_map->end;
-			map->pgoff	= new_map->pgoff;
-			map->map_ip	= new_map->map_ip;
-			map->unmap_ip	= new_map->unmap_ip;
-			/* Ensure maps are correctly ordered */
-			map__get(map);
-			map_groups__remove(kmaps, map);
-			map_groups__insert(kmaps, map);
-			map__put(map);
-		} else {
-			map_groups__insert(kmaps, new_map);
+
+		map_groups__insert(kmaps, new_map);
+
+		if (new_map != replacement_map) {
+			old_map = map_groups__find(&old_mg, new_map->type, new_map->start);
+			if (old_map && dso__loaded(old_map->dso, old_map->type)) {
+				new_map->pgoff = old_map->pgoff;
+
+				dso__put(new_map->dso);
+				new_map->dso = dso__get(old_map->dso);
+			}
 		}
 
 		map__put(new_map);
+	}
+
+	/* Remove old maps */
+	old_map = map_groups__first(&old_mg, map->type);
+	while (old_map) {
+		struct map *next = map_groups__next(old_map);
+
+		map_groups__remove(&old_mg, old_map);
+		old_map = next;
 	}
 
 	/*
