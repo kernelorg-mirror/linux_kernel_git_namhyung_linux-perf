@@ -946,6 +946,7 @@ enum ftrace_dump_direction;
 
 extern enum ftrace_dump_mode ftrace_dump_on_oops;
 extern enum ftrace_dump_direction ftrace_dump_direction;
+extern unsigned ftrace_dump_count;
 extern int tracepoint_printk;
 
 extern void disable_trace_on_warning(void);

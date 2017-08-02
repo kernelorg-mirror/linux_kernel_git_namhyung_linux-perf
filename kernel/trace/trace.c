@@ -130,6 +130,18 @@ enum ftrace_dump_mode ftrace_dump_on_oops;
  */
 enum ftrace_dump_direction ftrace_dump_direction = DUMP_FORWARD;
 
+/*
+ * ftrace_dump_count - variable to limit number of events dump
+ *
+ * If ftrace_dump is called, this will limit the number of event to be
+ * displayed.
+ *
+ * Default is 0 which means no limit.  You can set it to a different
+ * number either specifying "ftrace_dump_count" in the kernel command
+ * line, or setting /proc/sys/kernel/ftrace_dump_count.
+ */
+unsigned ftrace_dump_count;
+
 /* When set, tracing will stop when a WARN*() is hit */
 int __disable_trace_on_warning;
 
@@ -209,6 +221,18 @@ static int __init set_ftrace_dump_reverse(char *str)
 	return 1;
 }
 __setup("ftrace_dump_reverse", set_ftrace_dump_reverse);
+
+static int __init set_ftrace_dump_count(char *str)
+{
+	unsigned long count = 0;
+
+	if (*str++ != '=' || kstrtoul(str, 0, &count) < 0)
+		return 0;
+
+	ftrace_dump_count = count;
+	return 1;
+}
+__setup("ftrace_dump_count", set_ftrace_dump_count);
 
 static int __init stop_trace_on_warning(char *str)
 {
@@ -8241,7 +8265,8 @@ void ftrace_dump(enum ftrace_dump_mode oops_dump_mode)
 	struct trace_array *tr = &global_trace;
 	unsigned int old_userobj;
 	unsigned long flags;
-	int cnt = 0, cpu;
+	unsigned cnt = 0;
+	int cpu;
 
 	/* Only allow one dump user at a time. */
 	if (atomic_inc_return(&dump_running) != 1) {
@@ -8316,6 +8341,9 @@ void ftrace_dump(enum ftrace_dump_mode oops_dump_mode)
 			touch_nmi_watchdog();
 
 			trace_printk_seq(&iter.seq);
+
+			if (cnt == ftrace_dump_count)
+				break;
 		}
 
 		trace_reset_reverse_iter(&iter);
@@ -8353,6 +8381,9 @@ void ftrace_dump(enum ftrace_dump_mode oops_dump_mode)
 		touch_nmi_watchdog();
 
 		trace_printk_seq(&iter.seq);
+
+		if (cnt == ftrace_dump_count)
+			break;
 	}
 
  out:

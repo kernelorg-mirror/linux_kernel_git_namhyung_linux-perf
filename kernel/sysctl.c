@@ -624,6 +624,13 @@ static struct ctl_table kern_table[] = {
 		.proc_handler	= proc_dointvec,
 	},
 	{
+		.procname	= "ftrace_dump_count",
+		.data		= &ftrace_dump_count,
+		.maxlen		= sizeof(unsigned),
+		.mode		= 0644,
+		.proc_handler	= proc_douintvec,
+	},
+	{
 		.procname	= "traceoff_on_warning",
 		.data		= &__disable_trace_on_warning,
 		.maxlen		= sizeof(__disable_trace_on_warning),
