@@ -579,6 +579,11 @@ enum ftrace_dump_mode {
 	DUMP_ORIG,
 };
 
+enum ftrace_dump_direction {
+	DUMP_FORWARD,
+	DUMP_BACKWARD,
+};
+
 #ifdef CONFIG_TRACING
 void tracing_on(void);
 void tracing_off(void);

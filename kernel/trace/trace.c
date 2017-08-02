@@ -117,6 +117,8 @@ cpumask_var_t __read_mostly	tracing_buffer_mask;
 
 enum ftrace_dump_mode ftrace_dump_on_oops;
 
+enum ftrace_dump_direction ftrace_dump_direction = DUMP_FORWARD;
+
 /* When set, tracing will stop when a WARN*() is hit */
 int __disable_trace_on_warning;
 
@@ -8135,6 +8137,84 @@ void trace_init_global_iter(struct trace_iterator *iter)
 		iter->iter_flags |= TRACE_FILE_TIME_IN_NS;
 }
 
+static void trace_init_reverse_iter(struct trace_iterator *iter)
+{
+	/* use static because rev_iters can be big for the stack */
+	static struct ring_buffer_rev_iter rev_iters[NR_CPUS];
+	struct ring_buffer_rev_iter *riter;
+	int cpu;
+
+	for_each_tracing_cpu(cpu) {
+		riter = &rev_iters[cpu];
+		ring_buffer_rev_iter_init(riter, iter->trace_buffer->buffer, cpu);
+
+		/* skip empty buffers */
+		riter->done = ring_buffer_empty_cpu(iter->trace_buffer->buffer, cpu);
+	}
+
+	iter->rev_iters = rev_iters;
+}
+
+static void trace_reset_reverse_iter(struct trace_iterator *iter)
+{
+	struct ring_buffer_rev_iter *riter;
+	int cpu;
+
+	for_each_tracing_cpu(cpu) {
+		riter = &iter->rev_iters[cpu];
+		ring_buffer_rev_iter_finish(riter, iter->trace_buffer->buffer, cpu);
+	}
+
+	iter->rev_iters = NULL;
+}
+
+static struct trace_entry *trace_find_last_entry_dec(struct trace_iterator *iter)
+{
+	struct trace_entry *next = NULL;
+	struct ring_buffer_event *event;
+	struct ring_buffer_rev_iter *riter, *next_riter = NULL;
+	unsigned long lost_events = 0, next_lost = 0;
+	u64 next_ts = 0, ts;
+	int next_cpu = -1;
+	int next_size = 0;
+	int cpu;
+
+	for_each_tracing_cpu(cpu) {
+		riter = &iter->rev_iters[cpu];
+
+		if (riter->done)
+			continue;
+
+		event = ring_buffer_rev_iter_peek(riter, &ts);
+		if (event == NULL)
+			riter->done = true;
+
+		/*
+		 * Pick the entry with the largest timestamp:
+		 */
+		if (event && (!next || ts > next_ts)) {
+			next = ring_buffer_event_data(event);
+			next_cpu = cpu;
+			next_ts = ts;
+			next_lost = lost_events;
+			next_size = ring_buffer_event_length(event);
+			next_riter = riter;
+		}
+	}
+
+	if (next) {
+		iter->ent = next;
+		iter->ent_size = next_size;
+		iter->cpu = next_cpu;
+		iter->ts = next_ts;
+		iter->lost_events = next_lost;
+
+		ring_buffer_rev_iter_consume(next_riter);
+	}
+
+	return next;
+}
+
 void ftrace_dump(enum ftrace_dump_mode oops_dump_mode)
 {
 	/* use static because iter can be a bit big for the stack */
@@ -8197,6 +8277,33 @@ void ftrace_dump(enum ftrace_dump_mode oops_dump_mode)
 		printk("#          MAY BE MISSING FUNCTION EVENTS\n");
 	}
 
+	if (ftrace_dump_direction == DUMP_BACKWARD) {
+		trace_init_reverse_iter(&iter);
+
+		while (trace_find_last_entry_dec(&iter) != NULL) {
+			if (!cnt)
+				printk(KERN_TRACE "---------------------------------\n");
+
+			cnt++;
+
+			memset(&iter.seq, 0, sizeof(struct trace_seq));
+			/*
+			 * do not set TRACE_FILE_LAT_FMT as it requires
+			 * a next entry
+			 */
+			iter.pos = -1;
+
+			print_trace_line(&iter);
+
+			touch_nmi_watchdog();
+
+			trace_printk_seq(&iter.seq);
+		}
+
+		trace_reset_reverse_iter(&iter);
+		goto out;
+	}
+
 	/*
 	 * We need to stop all tracing on all CPUS to read the
 	 * the next buffer. This is a bit expensive, but is
@@ -8230,6 +8337,7 @@ void ftrace_dump(enum ftrace_dump_mode oops_dump_mode)
 		trace_printk_seq(&iter.seq);
 	}
 
+ out:
 	if (!cnt)
 		printk(KERN_TRACE "   (ftrace buffer empty)\n");
 	else

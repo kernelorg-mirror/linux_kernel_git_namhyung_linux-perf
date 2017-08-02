@@ -96,6 +96,7 @@ struct trace_iterator {
 	int			cpu_file;
 	struct mutex		mutex;
 	struct ring_buffer_iter	**buffer_iter;
+	struct ring_buffer_rev_iter *rev_iters;
 	unsigned long		iter_flags;
 
 	/* trace_seq for __print_flags() and __print_symbolic() etc. */
