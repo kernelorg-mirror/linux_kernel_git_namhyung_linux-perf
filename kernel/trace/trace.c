@@ -117,6 +117,17 @@ cpumask_var_t __read_mostly	tracing_buffer_mask;
 
 enum ftrace_dump_mode ftrace_dump_on_oops;
 
+/*
+ * ftrace_dump_direction - variable to dump direction of ftrace buffer
+ *
+ * If ftrace_dump is called, this will control the direction of dumping
+ * the contents of the ftrace buffers.  This can be helpful since
+ * outputing to a serial console is slow.
+ *
+ * Default is "forward" which is normal dump order.  You can set backward
+ * dumping either specifying "ftrace_dump_reverse" in the kernel command
+ * line, or setting /proc/sys/kernel/ftrace_dump_reverse to 1.
+ */
 enum ftrace_dump_direction ftrace_dump_direction = DUMP_FORWARD;
 
 /* When set, tracing will stop when a WARN*() is hit */
@@ -191,6 +202,13 @@ static int __init set_ftrace_dump_on_oops(char *str)
         return 0;
 }
 __setup("ftrace_dump_on_oops", set_ftrace_dump_on_oops);
+
+static int __init set_ftrace_dump_reverse(char *str)
+{
+	ftrace_dump_direction = DUMP_BACKWARD;
+	return 1;
+}
+__setup("ftrace_dump_reverse", set_ftrace_dump_reverse);
 
 static int __init stop_trace_on_warning(char *str)
 {
