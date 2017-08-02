@@ -66,6 +66,24 @@ struct trace_entry {
 #define TRACE_EVENT_TYPE_MAX						\
 	((1 << (sizeof(((struct trace_entry *)0)->type) * 8)) - 1)
 
+/* ring buffer reverse iterator per cpu */
+struct ring_buffer_rev_iter {
+	struct ring_buffer_per_cpu	*cpu_buffer;
+	struct buffer_page		*curr_page;
+	struct ring_buffer_event	*event;
+	u64				event_ts;
+	int				curr_idx;
+	bool				done;
+};
+
+int ring_buffer_rev_iter_init(struct ring_buffer_rev_iter *riter,
+			      struct ring_buffer *buffer, int cpu);
+int ring_buffer_rev_iter_finish(struct ring_buffer_rev_iter *riter,
+				struct ring_buffer *buffer, int cpu);
+struct ring_buffer_event *
+ring_buffer_rev_iter_peek(struct ring_buffer_rev_iter *riter, u64 *ts);
+int ring_buffer_rev_iter_consume(struct ring_buffer_rev_iter *riter);
+
 /*
  * Trace iterator - used by printout routines who present trace
  * results to users and which routines might sleep, etc:

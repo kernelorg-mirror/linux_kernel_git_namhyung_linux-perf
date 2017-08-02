@@ -3933,6 +3933,155 @@ ring_buffer_iter_peek(struct ring_buffer_iter *iter, u64 *ts)
 }
 
 /**
+ * ring_buffer_rev_iter_peek - peek at the next event to be read reverse
+ * @riter: The ring buffer reverse iterator
+ * @ts: The timestamp counter of this event
+ *
+ * This will return the event that will be read next in reverse order,
+ * but it does not change the iterater state.
+ */
+struct ring_buffer_event *
+ring_buffer_rev_iter_peek(struct ring_buffer_rev_iter *riter, u64 *ts)
+{
+	int i = 0;
+	unsigned pos = 0;
+	unsigned max_pos = rb_page_size(riter->curr_page);
+	struct ring_buffer_per_cpu *cpu_buffer = riter->cpu_buffer;
+	u64 curr_ts = riter->curr_page->page->time_stamp;
+	struct ring_buffer_event *event;
+
+	/* use cached event */
+	if (riter->event)
+		goto out;
+
+again:
+	if (unlikely(pos >= max_pos))
+		return NULL;
+
+	event = __rb_page_index(riter->curr_page, pos);
+	if (rb_null_event(event))
+		return NULL;
+
+	switch (event->type_len) {
+	case RINGBUF_TYPE_PADDING:
+		pos += event->array[0] + RB_EVNT_HDR_SIZE;
+		goto again;
+
+	case RINGBUF_TYPE_TIME_EXTEND:
+		curr_ts += (event->array[0] << TS_SHIFT) + event->time_delta;
+		pos += RB_LEN_TIME_EXTEND;
+		goto again;
+
+	case RINGBUF_TYPE_TIME_STAMP:
+		/* XXX: not implemented */
+		pos += RB_LEN_TIME_STAMP;
+		goto again;
+
+	case RINGBUF_TYPE_DATA:
+		curr_ts += event->time_delta;
+		pos += rb_event_data_length(event);
+
+		if (++i < riter->curr_idx)
+			goto again;
+		/* found */
+		break;
+
+	default:
+		return NULL;
+	}
+
+	riter->event = event;
+	riter->event_ts = curr_ts;
+
+out:
+	if (ts) {
+		*ts = riter->event_ts;
+		ring_buffer_normalize_time_stamp(cpu_buffer->buffer,
+						 cpu_buffer->cpu, ts);
+	}
+
+	return riter->event;
+}
+
+/**
+ * ring_buffer_rev_iter_init - initialize reverse iterator
+ * @riter: The ring buffer reverse iterator
+ * @buffer: The ring buffer to get event from
+ * @cpu: the cpu to read the buffer from
+ *
+ * This function sets up the reverse iterator.  It will point to
+ * the last event in the commit page.
+ */
+int ring_buffer_rev_iter_init(struct ring_buffer_rev_iter *riter,
+			      struct ring_buffer *buffer, int cpu)
+{
+	struct ring_buffer_per_cpu *cpu_buffer = buffer->buffers[cpu];
+
+	atomic_inc(&cpu_buffer->record_disabled);
+
+	riter->cpu_buffer = cpu_buffer;
+	riter->curr_page = cpu_buffer->commit_page;
+	riter->curr_idx = (int)rb_page_entries(cpu_buffer->commit_page);
+
+	riter->event = NULL;
+	riter->event_ts = 0;
+	riter->done = false;
+
+	return 0;
+}
+
+/**
+ * ring_buffer_rev_iter_finish - finalize reverse iterator
+ * @riter: The ring buffer reverse iterator
+ * @buffer: The ring buffer to get event from
+ * @cpu: the cpu to read the buffer from
+ *
+ * This function finalize the reverse iterator.
+ */
+int ring_buffer_rev_iter_finish(struct ring_buffer_rev_iter *riter,
+				struct ring_buffer *buffer, int cpu)
+{
+	struct ring_buffer_per_cpu *cpu_buffer = buffer->buffers[cpu];
+
+	atomic_dec(&cpu_buffer->record_disabled);
+
+	riter->event = NULL;
+	riter->event_ts = 0;
+	riter->done = true;
+
+	return 0;
+}
+
+/**
+ * ring_buffer_rev_iter_consume - prepare to move to the next event
+ * @riter: The ring buffer reverse iterator
+ *
+ * This function will make @riter point to the previous event of the
+ * current one (returned by ring_buffer_rev_iter_peek()).
+ */
+int ring_buffer_rev_iter_consume(struct ring_buffer_rev_iter *riter)
+{
+	riter->curr_idx--;
+	/* invalidate the cache */
+	riter->event = NULL;
+
+	if (riter->curr_idx <= 0) {
+		if (riter->curr_page == riter->cpu_buffer->reader_page) {
+			riter->done = true;
+			return -1;
+		}
+
+		if (riter->curr_page == riter->cpu_buffer->head_page)
+			riter->curr_page = riter->cpu_buffer->reader_page;
+		else
+			riter->curr_page = list_prev_entry(riter->curr_page, list);
+
+		riter->curr_idx = (int)rb_page_entries(riter->curr_page);
+	}
+	return 0;
+}
+
+/**
  * ring_buffer_consume - return an event and consume it
  * @buffer: The ring buffer to get the next event from
  * @cpu: the cpu to read the buffer from
