@@ -116,9 +116,8 @@ static int perf_top__parse_source(struct perf_top *top, struct hist_entry *he)
 	 */
 	if (map->dso->symtab_type == DSO_BINARY_TYPE__KALLSYMS &&
 	    !dso__is_kcore(map->dso)) {
-		pr_err("Can't annotate %s: No vmlinux file was found in the "
-		       "path\n", sym->name);
-		sleep(1);
+		pr_err("Can't annotate %s: No vmlinux file was found in the path\n",
+		       sym->name);
 		return -1;
 	}
 
@@ -129,7 +128,6 @@ static int perf_top__parse_source(struct perf_top *top, struct hist_entry *he)
 		pthread_mutex_unlock(&notes->lock);
 		pr_err("Not enough memory for annotating '%s' symbol!\n",
 		       sym->name);
-		sleep(1);
 		return err;
 	}
 
@@ -214,7 +212,6 @@ static void perf_top__record_precise_ip(struct perf_top *top,
 		else if (err == -ENOMEM) {
 			pr_err("Not enough memory for annotating '%s' symbol!\n",
 			       sym->name);
-			sleep(1);
 		}
 
 		pthread_mutex_lock(&he->hists->lock);
@@ -379,7 +376,6 @@ static void perf_top__prompt_symbol(struct perf_top *top, const char *msg)
 
 	if (!found) {
 		fprintf(stderr, "Sorry, %s is not active.\n", buf);
-		sleep(1);
 	} else
 		perf_top__parse_source(top, found);
 
@@ -494,8 +490,8 @@ static bool perf_top__handle_keypress(struct perf_top *top, int c)
 
 				if (counter >= top->evlist->nr_entries) {
 					top->sym_evsel = perf_evlist__first(top->evlist);
-					fprintf(stderr, "Sorry, no such event, using %s.\n", perf_evsel__name(top->sym_evsel));
-					sleep(1);
+					fprintf(stderr, "Sorry, no such event, using %s.\n",
+						perf_evsel__name(top->sym_evsel));
 					break;
 				}
 				evlist__for_each_entry(top->evlist, top->sym_evsel)
