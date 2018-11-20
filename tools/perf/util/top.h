@@ -13,6 +13,16 @@ struct perf_evlist;
 struct perf_evsel;
 struct perf_session;
 
+enum perf_top_warning {
+	PERF_TOP_WARN__NONE		= 0,
+	PERF_TOP_WARN__MAP_ERANGE,
+	PERF_TOP_WARN__KPTR_RESTRICT,
+	PERF_TOP_WARN__VMLINUX,
+	PERF_TOP_WARN__MMAP_READ,
+
+	PERF_TOP_WARN__MAX,
+};
+
 struct perf_top {
 	struct perf_tool   tool;
 	struct perf_evlist *evlist;
@@ -40,6 +50,14 @@ struct perf_top {
 	const char	   *sym_filter;
 	float		   min_percent;
 	unsigned int	   nr_threads_synthesize;
+
+	struct {
+		pthread_mutex_t		lock;
+		enum perf_top_warning	code;
+		struct map		*map;
+		struct symbol		*sym;
+		u64			ip;
+	} warning;
 };
 
 #define CONSOLE_CLEAR "[H[2J"

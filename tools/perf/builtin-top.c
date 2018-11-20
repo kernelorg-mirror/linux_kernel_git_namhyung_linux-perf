@@ -149,18 +149,22 @@ static void __zero_source_counters(struct hist_entry *he)
 	symbol__annotate_zero_histograms(sym);
 }
 
-static void ui__warn_map_erange(struct map *map, struct symbol *sym, u64 ip)
+static void perf_top__init_warning(struct perf_top *top)
 {
-	char *warn_msg;
+	pthread_mutex_init(&top->warning.lock, NULL);
+	top->warning.code = PERF_TOP_WARN__NONE;
+}
 
-	warn_msg = perf_top__warn_map_erange(map, sym, ip);
-	ui__warning("%s", warn_msg ?: "Out of bounds address found\n");
-	free(warn_msg);
-
-	if (use_browser <= 0)
-		sleep(5);
-
-	map->erange_warned = true;
+static void perf_top__set_warning(struct perf_top *top,
+				  enum perf_top_warning code,
+				  struct map *map, struct symbol *sym, u64 ip)
+{
+	pthread_mutex_lock(&top->warning.lock);
+	top->warning.code = code;
+	top->warning.map  = map;
+	top->warning.sym  = sym;
+	top->warning.ip   = ip;
+	pthread_mutex_unlock(&top->warning.lock);
 }
 
 static void perf_top__record_precise_ip(struct perf_top *top,
@@ -193,9 +197,11 @@ static void perf_top__record_precise_ip(struct perf_top *top,
 		 */
 		pthread_mutex_unlock(&he->hists->lock);
 
-		if (err == -ERANGE && !he->ms.map->erange_warned)
-			ui__warn_map_erange(he->ms.map, sym, ip);
-		else if (err == -ENOMEM) {
+		if (err == -ERANGE && !he->ms.map->erange_warned) {
+			perf_top__set_warning(top, PERF_TOP_WARN__MAP_ERANGE,
+					      he->ms.map, sym, ip);
+			he->ms.map->erange_warned = true;
+		} else if (err == -ENOMEM) {
 			pr_err("Not enough memory for annotating '%s' symbol!\n",
 			       sym->name);
 		}
@@ -714,14 +720,8 @@ static void perf_event__process_sample(struct perf_tool *tool,
 	    symbol_conf.kptr_restrict &&
 	    al.cpumode == PERF_RECORD_MISC_KERNEL) {
 		if (!perf_evlist__exclude_kernel(top->session->evlist)) {
-			char *warn_msg;
-
-			warn_msg = perf_top__warn_kptr_restrict(al.map);
-			ui__warning("%s", warn_msg ?: "Kernel maps are restricted.\n");
-			free(warn_msg);
-
-			if (use_browser <= 0)
-				sleep(5);
+			perf_top__set_warning(top, PERF_TOP_WARN__KPTR_RESTRICT,
+					      al.map, NULL, 0);
 		}
 		machine->kptr_restrict_warned = true;
 	}
@@ -740,14 +740,8 @@ static void perf_event__process_sample(struct perf_tool *tool,
 		 */
 		if (!machine->kptr_restrict_warned && !top->vmlinux_warned &&
 		    __map__is_kernel(al.map) && map__has_symbols(al.map)) {
-			char *warn_msg;
-
-			warn_msg = perf_top__warn_vmlinux(al.map);
-			ui__warning("%s", warn_msg ?: "Kernel symbols will not be resolved.\n");
-			free(warn_msg);
-
-			if (use_browser <= 0)
-				sleep(5);
+			perf_top__set_warning(top, PERF_TOP_WARN__VMLINUX,
+					      al.map, NULL, 0);
 			top->vmlinux_warned = true;
 		}
 	}
@@ -875,11 +869,8 @@ static void perf_top__mmap_read(struct perf_top *top)
 	end = rdclock();
 
 	if ((end - start) > (unsigned long long)top->delay_secs * NSEC_PER_SEC) {
-		char *warn_msg;
-
-		warn_msg = perf_top__warn_mmap_read();
-		ui__warning("%s", warn_msg ?: "Too slow to read ring buffer.\n");
-		free(warn_msg);
+		perf_top__set_warning(top, PERF_TOP_WARN__MMAP_READ,
+				      NULL, NULL, 0);
 	}
 }
 
@@ -1492,6 +1483,8 @@ int cmd_top(int argc, const char **argv)
 		perf_top__update_print_entries(&top);
 		signal(SIGWINCH, winch_sig);
 	}
+
+	perf_top__init_warning(&top);
 
 	status = __cmd_top(&top);
 

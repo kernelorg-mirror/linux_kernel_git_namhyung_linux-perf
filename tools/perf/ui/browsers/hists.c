@@ -606,6 +606,73 @@ static void ui_browser__warn_lost_events(struct ui_browser *browser)
 		"Or reduce the sampling frequency.");
 }
 
+static void ui_browser__perf_top_warn(struct ui_browser *browser,
+				      struct perf_top *top)
+{
+	enum perf_top_warning code;
+	struct map *map;
+	struct symbol *sym;
+	u64 ip;
+	const char *msg;
+	bool alloc = true;
+
+	pthread_mutex_lock(&top->warning.lock);
+	code = top->warning.code;
+	map  = top->warning.map;
+	sym  = top->warning.sym;
+	ip   = top->warning.ip;
+
+	top->warning.code = PERF_TOP_WARN__NONE;
+	pthread_mutex_unlock(&top->warning.lock);
+
+	if (code == PERF_TOP_WARN__NONE)
+		return;
+
+	switch (code) {
+	case PERF_TOP_WARN__MAP_ERANGE:
+		msg = perf_top__warn_map_erange(map, sym, ip);
+		if (msg == NULL) {
+			msg = "Out of bounds address found.\n";
+			alloc = false;
+		}
+		break;
+
+	case PERF_TOP_WARN__KPTR_RESTRICT:
+		msg = perf_top__warn_kptr_restrict(map);
+		if (msg == NULL) {
+			msg = "Kernel maps are restricted.\n";
+			alloc = false;
+		}
+		break;
+
+	case PERF_TOP_WARN__VMLINUX:
+		msg = perf_top__warn_vmlinux(map);
+		if (msg == NULL) {
+			msg = "Kernel symbols will not be resolved.\n";
+			alloc = false;
+		}
+		break;
+
+	case PERF_TOP_WARN__MMAP_READ:
+		msg = perf_top__warn_mmap_read();
+		if (msg == NULL) {
+			msg = "Too slow to read ring buffer.\n";
+			alloc = false;
+		}
+		break;
+
+	case PERF_TOP_WARN__NONE:
+	case PERF_TOP_WARN__MAX:
+	default:
+		return;
+	}
+
+	ui_browser__warning(browser, 5, "%s", msg);
+
+	if (alloc)
+		free((void *)msg);
+}
+
 static int hist_browser__title(struct hist_browser *browser, char *bf, size_t size)
 {
 	return browser->title ? browser->title(browser, bf, size) : 0;
@@ -642,6 +709,11 @@ int hist_browser__run(struct hist_browser *browser, const char *help,
 			nr_entries = hist_browser__nr_entries(browser);
 			ui_browser__update_nr_entries(&browser->b, nr_entries);
 
+			hist_browser__title(browser, title, sizeof(title));
+			ui_browser__show_title(&browser->b, title);
+
+			ui_browser__perf_top_warn(&browser->b, hbt->arg);
+
 			if (warn_lost_event &&
 			    (browser->hists->stats.nr_lost_warned !=
 			    browser->hists->stats.nr_events[PERF_RECORD_LOST])) {
@@ -650,8 +722,6 @@ int hist_browser__run(struct hist_browser *browser, const char *help,
 				ui_browser__warn_lost_events(&browser->b);
 			}
 
-			hist_browser__title(browser, title, sizeof(title));
-			ui_browser__show_title(&browser->b, title);
 			continue;
 		}
 		case 'D': { /* Debug */
