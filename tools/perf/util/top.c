@@ -14,6 +14,7 @@
 #include "symbol.h"
 #include "top.h"
 #include <inttypes.h>
+#include <sys/utsname.h>
 
 #define SNPRINTF(buf, size, fmt, args...) \
 ({ \
@@ -114,4 +115,78 @@ void perf_top__reset_sample_counters(struct perf_top *top)
 	top->samples = top->us_samples = top->kernel_samples =
 	top->exact_samples = top->guest_kernel_samples =
 	top->guest_us_samples = 0;
+}
+
+
+char *perf_top__warn_map_erange(struct map *map, struct symbol *sym, u64 ip)
+{
+	struct utsname uts;
+	int err = uname(&uts);
+	char *msg;
+
+	if (asprintf(&msg, "Out of bounds address found:\n\n"
+		     "Addr:   %" PRIx64 "\n"
+		     "DSO:    %s %c\n"
+		     "Map:    %" PRIx64 "-%" PRIx64 "\n"
+		     "Symbol: %" PRIx64 "-%" PRIx64 " %c %s\n"
+		     "Arch:   %s\n"
+		     "Kernel: %s\n"
+		     "Tools:  %s\n\n"
+		     "Not all samples will be on the annotation output.\n\n"
+		     "Please report to linux-kernel@vger.kernel.org\n",
+		     ip, map->dso->long_name, dso__symtab_origin(map->dso),
+		     map->start, map->end, sym->start, sym->end,
+		     sym->binding == STB_GLOBAL ? 'g' :
+		     sym->binding == STB_LOCAL  ? 'l' : 'w', sym->name,
+		     err ? "[unknown]" : uts.machine,
+		     err ? "[unknown]" : uts.release, perf_version_string) < 0)
+		msg = NULL;
+
+	return msg;
+}
+
+char *perf_top__warn_kptr_restrict(struct map *map)
+{
+	char *msg;
+
+	if (asprintf(&msg, "Kernel address maps (/proc/{kallsyms,modules}) are restricted.\n\n"
+		     "Check /proc/sys/kernel/kptr_restrict.\n\n"
+		     "Kernel%s samples will not be resolved.\n",
+		     map && map__has_symbols(map) ? " modules" : "") < 0)
+	    msg = NULL;
+
+	return msg;
+}
+
+char *perf_top__warn_vmlinux(struct map *map)
+{
+	char warn[] = "Kernel samples will not be resolved.\n";
+	char *msg;
+
+	if (symbol_conf.vmlinux_name) {
+		char serr[256];
+
+		dso__strerror_load(map->dso, serr, sizeof(serr));
+		if (asprintf(&msg, "The %s file can't be used: %s\n%s",
+			     symbol_conf.vmlinux_name, serr, warn) < 0)
+			msg = NULL;
+	} else {
+		if (asprintf(&msg, "A vmlinux file was not found.\n%s", warn) < 0)
+			msg = NULL;
+	}
+
+	return msg;
+}
+
+char *perf_top__warn_mmap_read(void)
+{
+	char *msg;
+
+	if (asprintf(&msg, "Too slow to read ring buffer.\n"
+		     "Please try increasing the period (-c) or\n"
+		     "decreasing the freq (-F) or\n"
+		     "limiting the number of CPUs (-C)\n") < 0)
+		msg = NULL;
+
+	return msg;
 }

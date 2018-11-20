@@ -67,7 +67,6 @@
 #include <sys/prctl.h>
 #include <sys/wait.h>
 #include <sys/uio.h>
-#include <sys/utsname.h>
 #include <sys/mman.h>
 
 #include <linux/stringify.h>
@@ -152,25 +151,12 @@ static void __zero_source_counters(struct hist_entry *he)
 
 static void ui__warn_map_erange(struct map *map, struct symbol *sym, u64 ip)
 {
-	struct utsname uts;
-	int err = uname(&uts);
+	char *warn_msg;
 
-	ui__warning("Out of bounds address found:\n\n"
-		    "Addr:   %" PRIx64 "\n"
-		    "DSO:    %s %c\n"
-		    "Map:    %" PRIx64 "-%" PRIx64 "\n"
-		    "Symbol: %" PRIx64 "-%" PRIx64 " %c %s\n"
-		    "Arch:   %s\n"
-		    "Kernel: %s\n"
-		    "Tools:  %s\n\n"
-		    "Not all samples will be on the annotation output.\n\n"
-		    "Please report to linux-kernel@vger.kernel.org\n",
-		    ip, map->dso->long_name, dso__symtab_origin(map->dso),
-		    map->start, map->end, sym->start, sym->end,
-		    sym->binding == STB_GLOBAL ? 'g' :
-		    sym->binding == STB_LOCAL  ? 'l' : 'w', sym->name,
-		    err ? "[unknown]" : uts.machine,
-		    err ? "[unknown]" : uts.release, perf_version_string);
+	warn_msg = perf_top__warn_map_erange(map, sym, ip);
+	ui__warning("%s", warn_msg ?: "Out of bounds address found\n");
+	free(warn_msg);
+
 	if (use_browser <= 0)
 		sleep(5);
 
@@ -728,12 +714,12 @@ static void perf_event__process_sample(struct perf_tool *tool,
 	    symbol_conf.kptr_restrict &&
 	    al.cpumode == PERF_RECORD_MISC_KERNEL) {
 		if (!perf_evlist__exclude_kernel(top->session->evlist)) {
-			ui__warning(
-"Kernel address maps (/proc/{kallsyms,modules}) are restricted.\n\n"
-"Check /proc/sys/kernel/kptr_restrict.\n\n"
-"Kernel%s samples will not be resolved.\n",
-			  al.map && map__has_symbols(al.map) ?
-			  " modules" : "");
+			char *warn_msg;
+
+			warn_msg = perf_top__warn_kptr_restrict(al.map);
+			ui__warning("%s", warn_msg ?: "Kernel maps are restricted.\n");
+			free(warn_msg);
+
 			if (use_browser <= 0)
 				sleep(5);
 		}
@@ -741,7 +727,6 @@ static void perf_event__process_sample(struct perf_tool *tool,
 	}
 
 	if (al.sym == NULL && al.map != NULL) {
-		const char *msg = "Kernel samples will not be resolved.\n";
 		/*
 		 * As we do lazy loading of symtabs we only will know if the
 		 * specified vmlinux file is invalid when we actually have a
@@ -755,15 +740,11 @@ static void perf_event__process_sample(struct perf_tool *tool,
 		 */
 		if (!machine->kptr_restrict_warned && !top->vmlinux_warned &&
 		    __map__is_kernel(al.map) && map__has_symbols(al.map)) {
-			if (symbol_conf.vmlinux_name) {
-				char serr[256];
-				dso__strerror_load(al.map->dso, serr, sizeof(serr));
-				ui__warning("The %s file can't be used: %s\n%s",
-					    symbol_conf.vmlinux_name, serr, msg);
-			} else {
-				ui__warning("A vmlinux file was not found.\n%s",
-					    msg);
-			}
+			char *warn_msg;
+
+			warn_msg = perf_top__warn_vmlinux(al.map);
+			ui__warning("%s", warn_msg ?: "Kernel symbols will not be resolved.\n");
+			free(warn_msg);
 
 			if (use_browser <= 0)
 				sleep(5);
@@ -893,11 +874,13 @@ static void perf_top__mmap_read(struct perf_top *top)
 	}
 	end = rdclock();
 
-	if ((end - start) > (unsigned long long)top->delay_secs * NSEC_PER_SEC)
-		ui__warning("Too slow to read ring buffer.\n"
-			    "Please try increasing the period (-c) or\n"
-			    "decreasing the freq (-F) or\n"
-			    "limiting the number of CPUs (-C)\n");
+	if ((end - start) > (unsigned long long)top->delay_secs * NSEC_PER_SEC) {
+		char *warn_msg;
+
+		warn_msg = perf_top__warn_mmap_read();
+		ui__warning("%s", warn_msg ?: "Too slow to read ring buffer.\n");
+		free(warn_msg);
+	}
 }
 
 /*

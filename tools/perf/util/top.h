@@ -46,4 +46,9 @@ struct perf_top {
 
 size_t perf_top__header_snprintf(struct perf_top *top, char *bf, size_t size);
 void perf_top__reset_sample_counters(struct perf_top *top);
+
+char *perf_top__warn_map_erange(struct map *map, struct symbol *sym, u64 ip);
+char *perf_top__warn_kptr_restrict(struct map *map);
+char *perf_top__warn_vmlinux(struct map *map);
+char *perf_top__warn_mmap_read(void);
 #endif /* __PERF_TOP_H */
