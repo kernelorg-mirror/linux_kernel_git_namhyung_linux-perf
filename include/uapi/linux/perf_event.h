@@ -374,7 +374,9 @@ struct perf_event_attr {
 				namespaces     :  1, /* include namespaces data */
 				ksymbol        :  1, /* include ksymbol events */
 				bpf_event      :  1, /* include bpf events */
-				__reserved_1   : 33;
+				aux_output     :  1, /* generate AUX records instead of events */
+				cgroup         :  1, /* include cgroup events */
+				__reserved_1   : 31;
 
 	union {
 		__u32		wakeup_events;	  /* wakeup every n events */
@@ -998,6 +1000,17 @@ enum perf_event_type {
 	 * };
 	 */
 	PERF_RECORD_BPF_EVENT			= 18,
+
+	/*
+	 * struct {
+	 *	struct perf_event_header	header;
+	 *	u64				ino;
+	 *	u64				path_len;
+	 *	char				path[];
+	 *	struct sample_id		sample_id;
+	 * };
+	 */
+	PERF_RECORD_CGROUP			= 19,
 
 	PERF_RECORD_MAX,			/* non-ABI */
 };
