@@ -15,8 +15,7 @@ int nr_cgroups;
 
 static struct rb_root cgroup_tree = RB_ROOT;
 
-static int
-cgroupfs_find_mountpoint(char *buf, size_t maxlen)
+int cgroupfs_find_mountpoint(char *buf, size_t maxlen)
 {
 	FILE *fp;
 	char mountpoint[PATH_MAX + 1], tokens[PATH_MAX + 1], type[PATH_MAX + 1];

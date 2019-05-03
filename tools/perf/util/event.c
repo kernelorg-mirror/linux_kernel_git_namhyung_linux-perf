@@ -33,6 +33,7 @@
 #include "bpf-event.h"
 #include "tool.h"
 #include "../perf.h"
+#include "cgroup.h"
 
 static const char *perf_event__names[] = {
 	[0]					= "TOTAL",
