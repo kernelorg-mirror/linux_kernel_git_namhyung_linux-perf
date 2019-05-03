@@ -735,6 +735,10 @@ int perf_event__synthesize_namespaces(struct perf_tool *tool,
 				      perf_event__handler_t process,
 				      struct machine *machine);
 
+int perf_event__synthesize_cgroups(struct perf_tool *tool,
+				   perf_event__handler_t process,
+				   struct machine *machine);
+
 int perf_event__synthesize_mmap_events(struct perf_tool *tool,
 				       union perf_event *event,
 				       pid_t pid, pid_t tgid,
