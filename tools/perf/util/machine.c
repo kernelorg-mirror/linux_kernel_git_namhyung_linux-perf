@@ -26,6 +26,7 @@
 #include "linux/hash.h"
 #include "asm/bug.h"
 #include "bpf-event.h"
+#include "cgroup.h"
 
 #include <linux/ctype.h>
 #include <symbol/kallsyms.h>
@@ -646,8 +647,14 @@ int machine__process_cgroup_event(struct machine *machine __maybe_unused,
 				  union perf_event *event,
 				  struct perf_sample *sample __maybe_unused)
 {
+	struct cgroup *cgrp;
+
 	if (dump_trace)
 		perf_event__fprintf_cgroup(event, stdout);
+
+	cgrp = cgroup__findnew(event->cgroup.ino, event->cgroup.path);
+	if (cgrp == NULL)
+		return -ENOMEM;
 
 	return 0;
 }
