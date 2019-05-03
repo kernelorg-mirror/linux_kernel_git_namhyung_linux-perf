@@ -1593,6 +1593,7 @@ int perf_event_attr__fprintf(FILE *fp, struct perf_event_attr *attr,
 	PRINT_ATTRf(ksymbol, p_unsigned);
 	PRINT_ATTRf(bpf_event, p_unsigned);
 	PRINT_ATTRf(aux_output, p_unsigned);
+	PRINT_ATTRf(cgroup, p_unsigned);
 
 	PRINT_ATTRn("{ wakeup_events, wakeup_watermark }", wakeup_events, p_unsigned);
 	PRINT_ATTRf(bp_type, p_unsigned);
@@ -2366,6 +2367,12 @@ int perf_evsel__parse_sample(struct evsel *evsel, union perf_event *event,
 	data->phys_addr = 0;
 	if (type & PERF_SAMPLE_PHYS_ADDR) {
 		data->phys_addr = *array;
+		array++;
+	}
+
+	data->cgroup = 0;
+	if (type & PERF_SAMPLE_CGROUP) {
+		data->cgroup = *array;
 		array++;
 	}
 
