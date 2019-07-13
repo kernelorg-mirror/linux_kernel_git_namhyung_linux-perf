@@ -1754,6 +1754,9 @@ static void __perf_event_header_size(struct perf_event *event, u64 sample_type)
 	if (sample_type & PERF_SAMPLE_PHYS_ADDR)
 		size += sizeof(data->phys_addr);
 
+	if (sample_type & PERF_SAMPLE_CGROUP)
+		size += sizeof(data->cgroup);
+
 	event->header_size = size;
 }
 
@@ -6387,6 +6390,19 @@ void perf_output_sample(struct perf_output_handle *handle,
 
 	if (sample_type & PERF_SAMPLE_PHYS_ADDR)
 		perf_output_put(handle, data->phys_addr);
+
+	if (sample_type & PERF_SAMPLE_CGROUP) {
+		u64 ino = 0;
+
+#ifdef CONFIG_CGROUP_PERF
+		struct cgroup *cgrp;
+
+		/* protected by RCU */
+		cgrp = task_css_check(current, perf_event_cgrp_id, 1)->cgroup;
+		ino = cgroup_ino(cgrp);
+#endif
+		perf_output_put(handle, ino);
+	}
 
 	if (!event->attr.watermark) {
 		int wakeup_events = event->attr.wakeup_events;
