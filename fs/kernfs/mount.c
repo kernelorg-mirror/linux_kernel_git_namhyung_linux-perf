@@ -53,63 +53,82 @@ const struct super_operations kernfs_sops = {
 	.show_path	= kernfs_sop_show_path,
 };
 
-/*
- * Similar to kernfs_fh_get_inode, this one gets kernfs node from inode
- * number and generation
- */
-struct kernfs_node *kernfs_get_node_by_id(struct kernfs_root *root,
-	const union kernfs_node_id *id)
+static int kernfs_encode_fh(struct inode *inode, __u32 *fh, int *max_len,
+			    struct inode *parent)
 {
-	struct kernfs_node *kn;
+	struct kernfs_node *kn = inode->i_private;
 
-	kn = kernfs_find_and_get_node_by_ino(root, id->ino);
-	if (!kn)
-		return NULL;
-	if (kn->id.generation != id->generation) {
-		kernfs_put(kn);
-		return NULL;
+	if (*max_len < 2) {
+		*max_len = 2;
+		return FILEID_INVALID;
 	}
-	return kn;
+
+	*max_len = 2;
+	*(u64 *)fh = kn->id;
+	return FILEID_KERNFS;
 }
 
-static struct inode *kernfs_fh_get_inode(struct super_block *sb,
-		u64 ino, u32 generation)
+static struct dentry *__kernfs_fh_to_dentry(struct super_block *sb,
+					    struct fid *fid, int fh_len,
+					    int fh_type, bool get_parent)
 {
 	struct kernfs_super_info *info = kernfs_info(sb);
-	struct inode *inode;
 	struct kernfs_node *kn;
+	struct inode *inode;
+	u64 id;
 
-	if (ino == 0)
-		return ERR_PTR(-ESTALE);
+	if (fh_len < 2)
+		return NULL;
 
-	kn = kernfs_find_and_get_node_by_ino(info->root, ino);
+	/*
+	 * We used to use the generic types and blktrace exposes the
+	 * numbers without specifying the type.  Accept the generic types
+	 * for compatibility.
+	 */
+	switch (fh_type) {
+	case FILEID_KERNFS:
+		id = *(u64 *)fid;
+		break;
+	case FILEID_INO32_GEN:
+	case FILEID_INO32_GEN_PARENT:
+		id = ((u64)fid->i32.gen << 32) | fid->i32.ino;
+		break;
+	default:
+		return NULL;
+	}
+
+	kn = kernfs_find_and_get_node_by_id(info->root, id);
 	if (!kn)
 		return ERR_PTR(-ESTALE);
+
+	if (get_parent) {
+		struct kernfs_node *parent;
+
+		parent = kernfs_get_parent(kn);
+		kernfs_put(kn);
+		kn = parent;
+	}
+
 	inode = kernfs_get_inode(sb, kn);
 	kernfs_put(kn);
 	if (!inode)
 		return ERR_PTR(-ESTALE);
 
-	if (generation && inode->i_generation != generation) {
-		/* we didn't find the right inode.. */
-		iput(inode);
-		return ERR_PTR(-ESTALE);
-	}
-	return inode;
+	return d_obtain_alias(inode);
 }
 
-static struct dentry *kernfs_fh_to_dentry(struct super_block *sb, struct fid *fid,
-		int fh_len, int fh_type)
+static struct dentry *kernfs_fh_to_dentry(struct super_block *sb,
+					  struct fid *fid, int fh_len,
+					  int fh_type)
 {
-	return generic_fh_to_dentry(sb, fid, fh_len, fh_type,
-				    kernfs_fh_get_inode);
+	return __kernfs_fh_to_dentry(sb, fid, fh_len, fh_type, false);
 }
 
-static struct dentry *kernfs_fh_to_parent(struct super_block *sb, struct fid *fid,
-		int fh_len, int fh_type)
+static struct dentry *kernfs_fh_to_parent(struct super_block *sb,
+					  struct fid *fid, int fh_len,
+					  int fh_type)
 {
-	return generic_fh_to_parent(sb, fid, fh_len, fh_type,
-				    kernfs_fh_get_inode);
+	return __kernfs_fh_to_dentry(sb, fid, fh_len, fh_type, true);
 }
 
 static struct dentry *kernfs_get_parent_dentry(struct dentry *child)
@@ -120,6 +139,7 @@ static struct dentry *kernfs_get_parent_dentry(struct dentry *child)
 }
 
 static const struct export_operations kernfs_export_ops = {
+	.encode_fh	= kernfs_encode_fh,
 	.fh_to_dentry	= kernfs_fh_to_dentry,
 	.fh_to_parent	= kernfs_fh_to_parent,
 	.get_parent	= kernfs_get_parent_dentry,
@@ -365,9 +385,9 @@ void __init kernfs_init(void)
 {
 
 	/*
-	 * the slab is freed in RCU context, so kernfs_find_and_get_node_by_ino
+	 * the slab is freed in RCU context, so kernfs_find_and_get_node_by_id
 	 * can access the slab lock free. This could introduce stale nodes,
-	 * please see how kernfs_find_and_get_node_by_ino filters out stale
+	 * please see how kernfs_find_and_get_node_by_id filters out stale
 	 * nodes.
 	 */
 	kernfs_node_cache = kmem_cache_create("kernfs_node_cache",
