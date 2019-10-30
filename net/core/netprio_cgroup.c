@@ -93,7 +93,7 @@ static int extend_netdev_table(struct net_device *dev, u32 target_idx)
 static u32 netprio_prio(struct cgroup_subsys_state *css, struct net_device *dev)
 {
 	struct netprio_map *map = rcu_dereference_rtnl(dev->priomap);
-	int id = css->cgroup->id;
+	u64 id = css->cgroup->id;
 
 	if (map && id < map->priomap_len)
 		return map->priomap[id];
@@ -113,7 +113,7 @@ static int netprio_set_prio(struct cgroup_subsys_state *css,
 			    struct net_device *dev, u32 prio)
 {
 	struct netprio_map *map;
-	int id = css->cgroup->id;
+	u64 id = css->cgroup->id;
 	int ret;
 
 	/* avoid extending priomap for zero writes */

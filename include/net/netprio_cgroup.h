@@ -15,14 +15,14 @@
 #if IS_ENABLED(CONFIG_CGROUP_NET_PRIO)
 struct netprio_map {
 	struct rcu_head rcu;
-	u32 priomap_len;
+	u64 priomap_len;
 	u32 priomap[];
 };
 
-static inline u32 task_netprioidx(struct task_struct *p)
+static inline u64 task_netprioidx(struct task_struct *p)
 {
 	struct cgroup_subsys_state *css;
-	u32 idx;
+	u64 idx;
 
 	rcu_read_lock();
 	css = task_css(p, net_prio_cgrp_id);
@@ -41,7 +41,7 @@ static inline void sock_update_netprioidx(struct sock_cgroup_data *skcd)
 
 #else /* !CONFIG_CGROUP_NET_PRIO */
 
-static inline u32 task_netprioidx(struct task_struct *p)
+static inline u64 task_netprioidx(struct task_struct *p)
 {
 	return 0;
 }
