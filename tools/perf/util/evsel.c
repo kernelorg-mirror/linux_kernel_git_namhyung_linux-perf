@@ -331,6 +331,63 @@ error_free:
 	goto out;
 }
 
+/**
+ * evsel__clone - create a new evsel copied from @orig
+ * @orig: original evsel
+ *
+ * The assumption is that @orig is not configured nor opened yet.
+ * So we only care about the attributes that can be set while it's parsed.
+ */
+struct evsel *evsel__clone(struct evsel *orig)
+{
+	struct evsel *evsel;
+	struct evsel_config_term *pos, *tmp;
+
+	BUG_ON(orig->core.fd);
+
+	evsel = evsel__new(&orig->core.attr);
+	if (evsel == NULL)
+		return NULL;
+
+	*evsel = *orig;
+	evsel->evlist = NULL;
+	INIT_LIST_HEAD(&evsel->core.node);
+
+	evsel->core.cpus = perf_cpu_map__get(orig->core.cpus);
+	evsel->core.own_cpus = perf_cpu_map__get(orig->core.own_cpus);
+	evsel->core.threads = perf_thread_map__get(orig->core.threads);
+	if (orig->name)
+		evsel->name = strdup(orig->name);
+	if (orig->group_name)
+		evsel->group_name = strdup(orig->group_name);
+	if (orig->pmu_name)
+		evsel->pmu_name = strdup(orig->pmu_name);
+
+	INIT_LIST_HEAD(&evsel->config_terms);
+	list_for_each_entry(pos, &orig->config_terms, list) {
+		tmp = malloc(sizeof(*tmp));
+		if (tmp == NULL) {
+			evsel__delete(evsel);
+			evsel = NULL;
+			break;
+		}
+
+		*tmp = *pos;
+		if (tmp->free_str) {
+			tmp->val.str = strdup(pos->val.str);
+			if (tmp->val.str == NULL) {
+				evsel__delete(evsel);
+				evsel = NULL;
+				free(tmp);
+				break;
+			}
+		}
+		list_add_tail(&tmp->list, &evsel->config_terms);
+	}
+
+	return evsel;
+}
+
 /*
  * Returns pointer with encoded error via <linux/err.h> interface.
  */
