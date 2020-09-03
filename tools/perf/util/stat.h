@@ -135,6 +135,7 @@ struct perf_stat_config {
 	struct rblist		 metric_events;
 	int			 ctl_fd;
 	int			 ctl_fd_ack;
+	char			*cgroups;
 };
 
 void perf_stat__set_big_num(int set);

@@ -1068,6 +1068,16 @@ static int parse_control_option(const struct option *opt,
 	return 0;
 }
 
+static int parse_stat_cgroups(const struct option *opt,
+			      const char *str, int unset)
+{
+	stat_config.cgroups = strdup(str);
+	if (!stat_config.cgroups)
+		return -1;
+
+	return parse_cgroups(opt, str, unset);
+}
+
 static struct option stat_options[] = {
 	OPT_BOOLEAN('T', "transaction", &transaction_run,
 		    "hardware transaction statistics"),
@@ -1111,7 +1121,9 @@ static struct option stat_options[] = {
 	OPT_STRING('x', "field-separator", &stat_config.csv_sep, "separator",
 		   "print counts with custom separator"),
 	OPT_CALLBACK('G', "cgroup", &evsel_list, "name",
-		     "monitor event in cgroup name only", parse_cgroups),
+		     "monitor event in cgroup name only", parse_stat_cgroups),
+	OPT_BOOLEAN(0, "multiply-cgroup", &multiply_cgroup,
+		    "multiply the event list by cgroups"),
 	OPT_STRING('o', "output", &output_name, "file", "output file name"),
 	OPT_BOOLEAN(0, "append", &append_file, "append to the output file"),
 	OPT_INTEGER(0, "log-fd", &output_fd,
@@ -2248,6 +2260,11 @@ int cmd_stat(int argc, const char **argv)
 	if (add_default_attributes())
 		goto out;
 
+	if (multiply_cgroup && stat_config.cgroups) {
+		if (evlist__multiply_cgroup(evsel_list, stat_config.cgroups) < 0)
+			goto out;
+	}
+
 	target__validate(&target);
 
 	if ((stat_config.aggr_mode == AGGR_THREAD) && (target.system_wide))
@@ -2412,6 +2429,7 @@ out:
 
 	evlist__delete(evsel_list);
 
+	free(stat_config.cgroups);
 	metricgroup__rblist_exit(&stat_config.metric_events);
 	runtime_stat_delete(&stat_config);
 

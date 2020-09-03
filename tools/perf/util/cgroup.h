@@ -17,6 +17,7 @@ struct cgroup {
 };
 
 extern int nr_cgroups; /* number of explicit cgroups defined */
+extern bool multiply_cgroup;  /* create events for each cgroup */
 
 struct cgroup *cgroup__get(struct cgroup *cgroup);
 void cgroup__put(struct cgroup *cgroup);
@@ -24,6 +25,7 @@ void cgroup__put(struct cgroup *cgroup);
 struct evlist;
 
 struct cgroup *evlist__findnew_cgroup(struct evlist *evlist, const char *name);
+int evlist__multiply_cgroup(struct evlist *evlist, const char *cgroups);
 
 void evlist__set_default_cgroup(struct evlist *evlist, struct cgroup *cgroup);
 
