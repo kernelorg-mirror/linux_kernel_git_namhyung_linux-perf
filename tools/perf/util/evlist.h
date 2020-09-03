@@ -381,4 +381,5 @@ int evlist__ctlfd_process(struct evlist *evlist, enum evlist_ctl_cmd *cmd);
 #define EVLIST_ENABLED_MSG "Events enabled\n"
 #define EVLIST_DISABLED_MSG "Events disabled\n"
 
+struct evsel *evlist__get_evsel(struct evlist *evlist, int idx);
 #endif /* __PERF_EVLIST_H */

@@ -2261,7 +2261,8 @@ int cmd_stat(int argc, const char **argv)
 		goto out;
 
 	if (multiply_cgroup && stat_config.cgroups) {
-		if (evlist__multiply_cgroup(evsel_list, stat_config.cgroups) < 0)
+		if (evlist__multiply_cgroup(evsel_list, stat_config.cgroups,
+					    &stat_config.metric_events) < 0)
 			goto out;
 	}
 
