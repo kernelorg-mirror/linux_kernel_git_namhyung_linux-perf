@@ -360,8 +360,11 @@ __add_event(struct list_head *list, int *idx,
 		event_attr_init(attr);
 
 	evsel = evsel__new_idx(attr, *idx);
-	if (!evsel)
+	if (!evsel) {
+		if (!pmu)
+			perf_cpu_map__put(cpus);
 		return NULL;
+	}
 
 	(*idx)++;
 	evsel->core.cpus   = perf_cpu_map__get(cpus);
@@ -369,6 +372,8 @@ __add_event(struct list_head *list, int *idx,
 	evsel->core.system_wide = pmu ? pmu->is_uncore : false;
 	evsel->auto_merge_stats = auto_merge_stats;
 
+	if (!pmu)
+		perf_cpu_map__put(cpus);
 	if (name)
 		evsel->name = strdup(name);
 
