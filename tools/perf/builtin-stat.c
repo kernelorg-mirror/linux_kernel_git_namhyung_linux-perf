@@ -2262,7 +2262,7 @@ int cmd_stat(int argc, const char **argv)
 
 	if (multiply_cgroup && stat_config.cgroups) {
 		if (evlist__multiply_cgroup(evsel_list, stat_config.cgroups,
-					    &stat_config.metric_events) < 0)
+					    &stat_config.metric_events, true) < 0)
 			goto out;
 	}
 

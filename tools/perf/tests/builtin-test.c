@@ -342,6 +342,10 @@ static struct test generic_tests[] = {
 		.func = test__parse_metric,
 	},
 	{
+		.desc = "Event multiplication for cgroups",
+		.func = test__multiply_cgroup_events,
+	},
+	{
 		.func = NULL,
 	},
 };
