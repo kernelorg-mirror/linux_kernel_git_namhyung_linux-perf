@@ -277,8 +277,6 @@ static int perf_event__repipe_sample(struct perf_tool *tool,
 		return f(tool, event, sample, evsel, machine);
 	}
 
-	build_id__mark_dso_hit(tool, event, sample, evsel, machine);
-
 	if (inject->itrace_synth_opts.set && sample->aux_sample.size)
 		event = perf_inject__cut_auxtrace_sample(inject, event, sample);
 
@@ -767,16 +765,6 @@ static int __cmd_inject(struct perf_inject *inject)
 		return ret;
 
 	if (!data_out->is_pipe) {
-		if (inject->build_ids)
-			perf_header__set_feat(&session->header,
-					      HEADER_BUILD_ID);
-		/*
-		 * Keep all buildids when there is unprocessed AUX data because
-		 * it is not known which ones the AUX trace hits.
-		 */
-		if (perf_header__has_feat(&session->header, HEADER_BUILD_ID) &&
-		    inject->have_auxtrace && !inject->itrace_synth_opts.set)
-			dsos__hit_all(session);
 		/*
 		 * The AUX areas have been removed and replaced with
 		 * synthesized hardware events, so clear the feature flag and
