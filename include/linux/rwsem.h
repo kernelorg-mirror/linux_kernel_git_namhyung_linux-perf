@@ -17,11 +17,9 @@
 #include <linux/err.h>
 
 #ifdef CONFIG_LOCK_INFO
-# define __RWSEM_DEP_MAP_INIT(lockname)			\
-	.dep_map = {					\
-		.name = #lockname,			\
-		.wait_type_inner = LD_WAIT_SLEEP,	\
-	},
+# define __RWSEM_DEP_MAP_INIT(lockname)				\
+	.dep_map = STATIC_LOCKDEP_MAP_INIT_WAIT(#lockname,	\
+					NULL, LD_WAIT_SLEEP),
 #else
 # define __RWSEM_DEP_MAP_INIT(lockname)
 #endif

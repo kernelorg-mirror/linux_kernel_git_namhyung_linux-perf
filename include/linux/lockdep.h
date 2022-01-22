@@ -238,6 +238,19 @@ static inline void lockdep_init_map(struct lockdep_map *lock, const char *name,
 	lockdep_set_class_and_name(lock, &__lockdep_no_validate__, #lock)
 
 /*
+ * To initialize a lockdep_map statically use this macro.
+ * Note that _name must not be NULL.
+ */
+#define STATIC_LOCKDEP_MAP_INIT(_name, _key) \
+	{ .name = (_name), .key = (void *)(_key), }
+
+#define STATIC_LOCKDEP_MAP_INIT_WAIT(_name, _key, _inner)	\
+	{ .name = (_name), .key = (void *)(_key), .wait_type_inner = (_inner), }
+
+#define STATIC_LOCKDEP_MAP_INIT_TYPE(_name, _key, _inner, _outer, _type)	\
+	{ .name = (_name), .key = (void *)(_key), .wait_type_inner = (_inner),	\
+	  .wait_type_outer = (_outer), .lock_type = (_type), }
+/*
  * Compare locking classes
  */
 #define lockdep_match_class(lock, key) lockdep_match_key(&(lock)->dep_map, key)
@@ -377,6 +390,10 @@ static inline void lockdep_set_selftest_task(struct task_struct *task)
 
 #define lockdep_set_novalidate_class(lock) do { } while (0)
 
+#define STATIC_LOCKDEP_MAP_INIT(_name, _key) { }
+#define STATIC_LOCKDEP_MAP_INIT_WAIT(_name, _key, _inner) { }
+#define STATIC_LOCKDEP_MAP_INIT_TYPE(_name, _key, _inner, _outer, _type) { }
+
 /*
  * We don't define lockdep_match_class() and lockdep_match_key() for !LOCKDEP
  * case since the result is not well defined and the caller should rather
@@ -432,12 +449,6 @@ enum xhlock_context_t {
 };
 
 #define lockdep_init_map_crosslock(m, n, k, s) do {} while (0)
-/*
- * To initialize a lockdep_map statically use this macro.
- * Note that _name must not be NULL.
- */
-#define STATIC_LOCKDEP_MAP_INIT(_name, _key) \
-	{ .name = (_name), .key = (void *)(_key), }
 
 static inline void lockdep_invariant_state(bool force) {}
 static inline void lockdep_free_task(struct task_struct *task) {}

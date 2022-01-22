@@ -27,23 +27,15 @@ typedef struct raw_spinlock {
 #define SPINLOCK_OWNER_INIT	((void *)-1L)
 
 #ifdef CONFIG_LOCK_INFO
-# define RAW_SPIN_DEP_MAP_INIT(lockname)		\
-	.dep_map = {					\
-		.name = #lockname,			\
-		.wait_type_inner = LD_WAIT_SPIN,	\
-	}
-# define SPIN_DEP_MAP_INIT(lockname)			\
-	.dep_map = {					\
-		.name = #lockname,			\
-		.wait_type_inner = LD_WAIT_CONFIG,	\
-	}
+# define RAW_SPIN_DEP_MAP_INIT(lockname)					\
+	.dep_map = STATIC_LOCKDEP_MAP_INIT_WAIT(#lockname, NULL, LD_WAIT_SPIN)
 
-# define LOCAL_SPIN_DEP_MAP_INIT(lockname)		\
-	.dep_map = {					\
-		.name = #lockname,			\
-		.wait_type_inner = LD_WAIT_CONFIG,	\
-		.lock_type = LD_LOCK_PERCPU,		\
-	}
+# define SPIN_DEP_MAP_INIT(lockname)						\
+	.dep_map = STATIC_LOCKDEP_MAP_INIT_WAIT(#lockname, NULL, LD_WAIT_CONFIG)
+
+# define LOCAL_SPIN_DEP_MAP_INIT(lockname)					\
+	.dep_map = STATIC_LOCKDEP_MAP_INIT_TYPE(#lockname, NULL, LD_WAIT_CONFIG,\
+						LD_WAIT_INV, LD_LOCK_PERCPU)
 #else
 # define RAW_SPIN_DEP_MAP_INIT(lockname)
 # define SPIN_DEP_MAP_INIT(lockname)

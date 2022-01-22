@@ -1672,9 +1672,8 @@ static int mem_cgroup_soft_reclaim(struct mem_cgroup *root_memcg,
 }
 
 #ifdef CONFIG_LOCK_INFO
-static struct lockdep_map memcg_oom_lock_dep_map = {
-	.name = "memcg_oom_lock",
-};
+static struct lockdep_map memcg_oom_lock_dep_map =
+	STATIC_LOCKDEP_MAP_INIT("memcg_oom_lock", NULL);
 #endif
 
 static DEFINE_SPINLOCK(memcg_oom_lock);

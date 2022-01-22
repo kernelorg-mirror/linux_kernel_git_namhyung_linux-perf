@@ -77,11 +77,9 @@ do { \
 } while (0)
 
 #ifdef CONFIG_LOCK_INFO
-#define __DEP_MAP_RT_MUTEX_INITIALIZER(mutexname)	\
-	.dep_map = {					\
-		.name = #mutexname,			\
-		.wait_type_inner = LD_WAIT_SLEEP,	\
-	}
+#define __DEP_MAP_RT_MUTEX_INITIALIZER(mutexname)			\
+	.dep_map = STATIC_LOCKDEP_MAP_INIT_WAIT(#mutexname,		\
+						NULL, LD_WAIT_SLEEP)
 #else
 #define __DEP_MAP_RT_MUTEX_INITIALIZER(mutexname)
 #endif

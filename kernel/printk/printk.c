@@ -94,9 +94,8 @@ EXPORT_SYMBOL_GPL(console_drivers);
 int __read_mostly suppress_printk;
 
 #ifdef CONFIG_LOCK_INFO
-static struct lockdep_map console_lock_dep_map = {
-	.name = "console_lock"
-};
+static struct lockdep_map console_lock_dep_map =
+	STATIC_LOCKDEP_MAP_INIT("console_lock", NULL);
 #endif
 
 enum devkmsg_log_bits {
@@ -1753,9 +1752,8 @@ SYSCALL_DEFINE3(syslog, int, type, char __user *, buf, int, len)
  */
 
 #ifdef CONFIG_LOCK_INFO
-static struct lockdep_map console_owner_dep_map = {
-	.name = "console_owner"
-};
+static struct lockdep_map console_owner_dep_map =
+	STATIC_LOCKDEP_MAP_INIT("console_owner", NULL);
 #endif
 
 static DEFINE_RAW_SPINLOCK(console_owner_lock);

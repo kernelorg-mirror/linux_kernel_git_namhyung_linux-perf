@@ -7,10 +7,7 @@
 
 #ifdef CONFIG_LOCK_INFO
 # define RW_DEP_MAP_INIT(lockname)					\
-	.dep_map = {							\
-		.name = #lockname,					\
-		.wait_type_inner = LD_WAIT_CONFIG,			\
-	}
+	.dep_map = STATIC_LOCKDEP_MAP_INIT_WAIT(#lockname, NULL, LD_WAIT_CONFIG)
 #else
 # define RW_DEP_MAP_INIT(lockname)
 #endif

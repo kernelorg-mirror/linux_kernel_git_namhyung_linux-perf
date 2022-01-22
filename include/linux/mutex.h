@@ -22,10 +22,8 @@
 
 #ifdef CONFIG_LOCK_INFO
 # define __DEP_MAP_MUTEX_INITIALIZER(lockname)			\
-		, .dep_map = {					\
-			.name = #lockname,			\
-			.wait_type_inner = LD_WAIT_SLEEP,	\
-		}
+	, .dep_map = STATIC_LOCKDEP_MAP_INIT_WAIT(#lockname,	\
+					NULL, LD_WAIT_SLEEP)
 #else
 # define __DEP_MAP_MUTEX_INITIALIZER(lockname)
 #endif

@@ -16,12 +16,10 @@ typedef struct {
 } local_lock_t;
 
 #ifdef CONFIG_LOCK_INFO
-# define LOCAL_LOCK_DEBUG_INIT(lockname)		\
-	.dep_map = {					\
-		.name = #lockname,			\
-		.wait_type_inner = LD_WAIT_CONFIG,	\
-		.lock_type = LD_LOCK_PERCPU,		\
-	},						\
+# define LOCAL_LOCK_DEBUG_INIT(lockname)				\
+	.dep_map = STATIC_LOCKDEP_MAP_INIT_TYPE(#lockname, NULL,	\
+					LD_WAIT_CONFIG, LD_WAIT_INV,	\
+					LD_LOCK_PERCPU),		\
 	.owner = NULL,
 
 static inline void local_lock_acquire(local_lock_t *l)
