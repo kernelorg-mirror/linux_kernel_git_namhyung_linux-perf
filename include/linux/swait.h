@@ -75,7 +75,7 @@ extern void __init_swait_queue_head(struct swait_queue_head *q, const char *name
 		__init_swait_queue_head((q), #q, &__key);	\
 	} while (0)
 
-#ifdef CONFIG_LOCKDEP
+#ifdef CONFIG_LOCK_INFO
 # define __SWAIT_QUEUE_HEAD_INIT_ONSTACK(name)			\
 	({ init_swait_queue_head(&name); name; })
 # define DECLARE_SWAIT_QUEUE_HEAD_ONSTACK(name)			\

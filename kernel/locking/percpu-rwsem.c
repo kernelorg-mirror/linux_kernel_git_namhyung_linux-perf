@@ -20,7 +20,7 @@ int __percpu_init_rwsem(struct percpu_rw_semaphore *sem,
 	rcuwait_init(&sem->writer);
 	init_waitqueue_head(&sem->waiters);
 	atomic_set(&sem->block, 0);
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 	debug_check_no_locks_freed((void *)sem, sizeof(*sem));
 	lockdep_init_map(&sem->dep_map, name, key, 0);
 #endif

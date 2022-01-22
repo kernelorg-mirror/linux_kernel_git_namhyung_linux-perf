@@ -9,13 +9,13 @@
 #ifndef CONFIG_PREEMPT_RT
 
 typedef struct {
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 	struct lockdep_map	dep_map;
 	struct task_struct	*owner;
 #endif
 } local_lock_t;
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 # define LOCAL_LOCK_DEBUG_INIT(lockname)		\
 	.dep_map = {					\
 		.name = #lockname,			\
@@ -42,12 +42,12 @@ static inline void local_lock_debug_init(local_lock_t *l)
 {
 	l->owner = NULL;
 }
-#else /* CONFIG_DEBUG_LOCK_ALLOC */
+#else /* CONFIG_LOCK_INFO */
 # define LOCAL_LOCK_DEBUG_INIT(lockname)
 static inline void local_lock_acquire(local_lock_t *l) { }
 static inline void local_lock_release(local_lock_t *l) { }
 static inline void local_lock_debug_init(local_lock_t *l) { }
-#endif /* !CONFIG_DEBUG_LOCK_ALLOC */
+#endif /* !CONFIG_LOCK_INFO */
 
 #define INIT_LOCAL_LOCK(lockname)	{ LOCAL_LOCK_DEBUG_INIT(lockname) }
 

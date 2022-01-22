@@ -6,7 +6,7 @@
 #error Do not #include directly. Use <linux/spinlock.h>.
 #endif
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 extern void __rt_rwlock_init(rwlock_t *rwlock, const char *name,
 			     struct lock_class_key *key);
 #else
@@ -84,7 +84,7 @@ static __always_inline void write_lock(rwlock_t *rwlock)
 	rt_write_lock(rwlock);
 }
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 static __always_inline void write_lock_nested(rwlock_t *rwlock, int subclass)
 {
 	rt_write_lock_nested(rwlock, subclass);

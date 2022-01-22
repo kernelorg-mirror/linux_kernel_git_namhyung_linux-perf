@@ -93,7 +93,7 @@ EXPORT_SYMBOL_GPL(console_drivers);
  */
 int __read_mostly suppress_printk;
 
-#ifdef CONFIG_LOCKDEP
+#ifdef CONFIG_LOCK_INFO
 static struct lockdep_map console_lock_dep_map = {
 	.name = "console_lock"
 };
@@ -1752,7 +1752,7 @@ SYSCALL_DEFINE3(syslog, int, type, char __user *, buf, int, len)
  * They allow to pass console_lock to another printk() call using a busy wait.
  */
 
-#ifdef CONFIG_LOCKDEP
+#ifdef CONFIG_LOCK_INFO
 static struct lockdep_map console_owner_dep_map = {
 	.name = "console_owner"
 };

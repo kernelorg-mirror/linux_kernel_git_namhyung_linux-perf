@@ -64,7 +64,7 @@
  */
 typedef struct seqcount {
 	unsigned sequence;
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 	struct lockdep_map dep_map;
 #endif
 } seqcount_t;
@@ -79,7 +79,7 @@ static inline void __seqcount_init(seqcount_t *s, const char *name,
 	s->sequence = 0;
 }
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 
 # define SEQCOUNT_DEP_MAP_INIT(lockname)				\
 		.dep_map = { .name = #lockname }

@@ -16,7 +16,7 @@
 void __raw_spin_lock_init(raw_spinlock_t *lock, const char *name,
 			  struct lock_class_key *key, short inner)
 {
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 	/*
 	 * Make sure we are not reinitializing a held lock:
 	 */
@@ -35,7 +35,7 @@ EXPORT_SYMBOL(__raw_spin_lock_init);
 void __rwlock_init(rwlock_t *lock, const char *name,
 		   struct lock_class_key *key)
 {
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 	/*
 	 * Make sure we are not reinitializing a held lock:
 	 */

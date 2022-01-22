@@ -57,7 +57,7 @@ struct ldsem_waiter {
 void __init_ldsem(struct ld_semaphore *sem, const char *name,
 		  struct lock_class_key *key)
 {
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 	/*
 	 * Make sure we are not reinitializing a held semaphore:
 	 */

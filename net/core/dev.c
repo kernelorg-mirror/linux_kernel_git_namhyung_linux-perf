@@ -406,7 +406,7 @@ static RAW_NOTIFIER_HEAD(netdev_chain);
 DEFINE_PER_CPU_ALIGNED(struct softnet_data, softnet_data);
 EXPORT_PER_CPU_SYMBOL(softnet_data);
 
-#ifdef CONFIG_LOCKDEP
+#ifdef CONFIG_LOCK_INFO
 /*
  * register_netdevice() inits txq->_xmit_lock and sets lockdep class
  * according to dev->type

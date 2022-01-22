@@ -489,7 +489,7 @@ int v4l2_ctrl_handler_init_class(struct v4l2_ctrl_handler *hdl,
 				 unsigned int nr_of_controls_hint,
 				 struct lock_class_key *key, const char *name);
 
-#ifdef CONFIG_LOCKDEP
+#ifdef CONFIG_LOCK_INFO
 
 /**
  * v4l2_ctrl_handler_init - helper function to create a static struct

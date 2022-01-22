@@ -56,7 +56,7 @@ __ww_rt_mutex_lock(struct ww_mutex *lock, struct ww_acquire_ctx *ww_ctx,
 		if (ww_ctx->acquired == 0)
 			ww_ctx->wounded = 0;
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 		nest_lock = &ww_ctx->dep_map;
 #endif
 	}

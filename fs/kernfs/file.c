@@ -994,7 +994,7 @@ struct kernfs_node *__kernfs_create_file(struct kernfs_node *parent,
 	kn->ns = ns;
 	kn->priv = priv;
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 	if (key) {
 		lockdep_init_map(&kn->dep_map, "kn->active", key, 0);
 		kn->flags |= KERNFS_LOCKDEP;

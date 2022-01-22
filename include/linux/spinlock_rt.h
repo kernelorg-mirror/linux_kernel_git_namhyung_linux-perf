@@ -6,7 +6,7 @@
 #error Do not include directly. Use spinlock.h
 #endif
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 extern void __rt_spin_lock_init(spinlock_t *lock, const char *name,
 				struct lock_class_key *key, bool percpu);
 #else
@@ -45,7 +45,7 @@ static __always_inline void spin_lock(spinlock_t *lock)
 	rt_spin_lock(lock);
 }
 
-#ifdef CONFIG_LOCKDEP
+#ifdef CONFIG_LOCK_INFO
 # define __spin_lock_nested(lock, subclass)				\
 	rt_spin_lock_nested(lock, subclass)
 

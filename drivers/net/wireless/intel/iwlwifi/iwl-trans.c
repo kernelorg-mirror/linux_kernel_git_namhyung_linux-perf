@@ -21,7 +21,7 @@ struct iwl_trans *iwl_trans_alloc(unsigned int priv_size,
 				  const struct iwl_cfg_trans_params *cfg_trans)
 {
 	struct iwl_trans *trans;
-#ifdef CONFIG_LOCKDEP
+#ifdef CONFIG_LOCK_INFO
 	static struct lock_class_key __key;
 #endif
 
@@ -31,7 +31,7 @@ struct iwl_trans *iwl_trans_alloc(unsigned int priv_size,
 
 	trans->trans_cfg = cfg_trans;
 
-#ifdef CONFIG_LOCKDEP
+#ifdef CONFIG_LOCK_INFO
 	lockdep_init_map(&trans->sync_cmd_lockdep_map, "sync_cmd_lockdep_map",
 			 &__key, 0);
 #endif

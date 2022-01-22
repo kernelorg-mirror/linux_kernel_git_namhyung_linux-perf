@@ -172,7 +172,7 @@ struct kthread_delayed_work {
  * kthread_worker.lock needs its own lockdep class key when defined on
  * stack with lockdep enabled.  Use the following macros in such cases.
  */
-#ifdef CONFIG_LOCKDEP
+#ifdef CONFIG_LOCK_INFO
 # define KTHREAD_WORKER_INIT_ONSTACK(worker)				\
 	({ kthread_init_worker(&worker); worker; })
 # define DEFINE_KTHREAD_WORKER_ONSTACK(worker)				\

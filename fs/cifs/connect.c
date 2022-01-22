@@ -2573,7 +2573,7 @@ out:
 	return rc;
 }
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 static struct lock_class_key cifs_key[2];
 static struct lock_class_key cifs_slock_key[2];
 

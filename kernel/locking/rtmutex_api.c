@@ -40,7 +40,7 @@ void rt_mutex_base_init(struct rt_mutex_base *rtb)
 }
 EXPORT_SYMBOL(rt_mutex_base_init);
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 /**
  * rt_mutex_lock_nested - lock a rt_mutex
  *
@@ -59,7 +59,7 @@ void __sched _rt_mutex_lock_nest_lock(struct rt_mutex *lock, struct lockdep_map 
 }
 EXPORT_SYMBOL_GPL(_rt_mutex_lock_nest_lock);
 
-#else /* !CONFIG_DEBUG_LOCK_ALLOC */
+#else /* !CONFIG_LOCK_INFO */
 
 /**
  * rt_mutex_lock - lock a rt_mutex
@@ -517,7 +517,7 @@ static __always_inline int __mutex_lock_common(struct mutex *lock,
 	return ret;
 }
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 void __sched mutex_lock_nested(struct mutex *lock, unsigned int subclass)
 {
 	__mutex_lock_common(lock, TASK_UNINTERRUPTIBLE, subclass, NULL, _RET_IP_);
@@ -557,7 +557,7 @@ void __sched mutex_lock_io_nested(struct mutex *lock, unsigned int subclass)
 }
 EXPORT_SYMBOL_GPL(mutex_lock_io_nested);
 
-#else /* CONFIG_DEBUG_LOCK_ALLOC */
+#else /* CONFIG_LOCK_INFO */
 
 void __sched mutex_lock(struct mutex *lock)
 {
@@ -585,7 +585,7 @@ void __sched mutex_lock_io(struct mutex *lock)
 	io_schedule_finish(token);
 }
 EXPORT_SYMBOL(mutex_lock_io);
-#endif /* !CONFIG_DEBUG_LOCK_ALLOC */
+#endif /* !CONFIG_LOCK_INFO */
 
 int __sched mutex_trylock(struct mutex *lock)
 {

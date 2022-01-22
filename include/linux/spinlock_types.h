@@ -18,7 +18,7 @@ typedef struct spinlock {
 	union {
 		struct raw_spinlock rlock;
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 # define LOCK_PADSIZE (offsetof(struct raw_spinlock, dep_map))
 		struct {
 			u8 __padding[LOCK_PADSIZE];
@@ -49,7 +49,7 @@ typedef struct spinlock {
 
 typedef struct spinlock {
 	struct rt_mutex_base	lock;
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 	struct lockdep_map	dep_map;
 #endif
 } spinlock_t;

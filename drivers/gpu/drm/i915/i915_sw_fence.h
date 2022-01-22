@@ -43,7 +43,7 @@ void __i915_sw_fence_init(struct i915_sw_fence *fence,
 			  i915_sw_fence_notify_t fn,
 			  const char *name,
 			  struct lock_class_key *key);
-#ifdef CONFIG_LOCKDEP
+#ifdef CONFIG_LOCK_INFO
 #define i915_sw_fence_init(fence, fn)				\
 do {								\
 	static struct lock_class_key __key;			\

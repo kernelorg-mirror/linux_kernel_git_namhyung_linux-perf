@@ -20,7 +20,7 @@ struct ld_semaphore {
 	unsigned int		wait_readers;
 	struct list_head	read_wait;
 	struct list_head	write_wait;
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 	struct lockdep_map	dep_map;
 #endif
 };

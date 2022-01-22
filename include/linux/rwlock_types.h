@@ -5,7 +5,7 @@
 # error "Do not include directly, include spinlock_types.h"
 #endif
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 # define RW_DEP_MAP_INIT(lockname)					\
 	.dep_map = {							\
 		.name = #lockname,					\
@@ -28,7 +28,7 @@ typedef struct {
 	unsigned int magic, owner_cpu;
 	void *owner;
 #endif
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 	struct lockdep_map dep_map;
 #endif
 } rwlock_t;
@@ -57,7 +57,7 @@ typedef struct {
 typedef struct {
 	struct rwbase_rt	rwbase;
 	atomic_t		readers;
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 	struct lockdep_map	dep_map;
 #endif
 } rwlock_t;

@@ -666,12 +666,12 @@ struct regmap *__devm_regmap_init_spi_avmm(struct spi_device *spi,
 					   const char *lock_name);
 /*
  * Wrapper for regmap_init macros to include a unique lockdep key and name
- * for each call. No-op if CONFIG_LOCKDEP is not set.
+ * for each call. No-op if CONFIG_LOCK_INFO is not set.
  *
  * @fn: Real function to call (in the form __[*_]regmap_init[_*])
  * @name: Config variable name (#config in the calling macro)
  **/
-#ifdef CONFIG_LOCKDEP
+#ifdef CONFIG_LOCK_INFO
 #define __regmap_lockdep_wrapper(fn, name, ...)				\
 (									\
 	({								\

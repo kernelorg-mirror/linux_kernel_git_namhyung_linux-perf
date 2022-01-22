@@ -1394,6 +1394,7 @@ config LOCKDEP
 	select STACKTRACE
 	select KALLSYMS
 	select KALLSYMS_ALL
+	select LOCK_INFO
 
 config LOCKDEP_SMALL
 	bool
@@ -1446,6 +1447,10 @@ config DEBUG_LOCKDEP
 	  If you say Y here, the lock dependency engine will do
 	  additional runtime checks to debug itself, at the price
 	  of more runtime overhead.
+
+config LOCK_INFO
+	bool
+	default n
 
 config DEBUG_ATOMIC_SLEEP
 	bool "Sleep inside atomic section checking"

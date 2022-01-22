@@ -144,7 +144,7 @@ struct async_submit_bio {
  * same as our lockdep setup here.  If BTRFS_MAX_LEVEL changes, this code
  * needs update as well.
  */
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 # if BTRFS_MAX_LEVEL != 8
 #  error
 # endif

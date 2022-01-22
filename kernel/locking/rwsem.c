@@ -304,7 +304,7 @@ rwsem_owner_flags(struct rw_semaphore *sem, unsigned long *pflags)
 void __init_rwsem(struct rw_semaphore *sem, const char *name,
 		  struct lock_class_key *key)
 {
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 	/*
 	 * Make sure we are not reinitializing a held semaphore:
 	 */
@@ -1378,7 +1378,7 @@ void __init_rwsem(struct rw_semaphore *sem, const char *name,
 {
 	init_rwbase_rt(&(sem)->rwbase);
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 	debug_check_no_locks_freed((void *)sem, sizeof(*sem));
 	lockdep_init_map_wait(&sem->dep_map, name, key, 0, LD_WAIT_SLEEP);
 #endif

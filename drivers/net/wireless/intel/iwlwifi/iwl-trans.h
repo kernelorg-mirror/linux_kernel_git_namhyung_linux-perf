@@ -1011,7 +1011,7 @@ struct iwl_trans {
 
 	struct dentry *dbgfs_dir;
 
-#ifdef CONFIG_LOCKDEP
+#ifdef CONFIG_LOCK_INFO
 	struct lockdep_map sync_cmd_lockdep_map;
 #endif
 

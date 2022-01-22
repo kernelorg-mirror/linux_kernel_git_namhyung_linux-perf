@@ -264,7 +264,7 @@ struct mmu_interval_notifier {
 
 #ifdef CONFIG_MMU_NOTIFIER
 
-#ifdef CONFIG_LOCKDEP
+#ifdef CONFIG_LOCK_INFO
 extern struct lockdep_map __mmu_notifier_invalidate_range_start_map;
 #endif
 

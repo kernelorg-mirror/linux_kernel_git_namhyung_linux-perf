@@ -56,7 +56,7 @@ void __sched rt_spin_lock(spinlock_t *lock)
 }
 EXPORT_SYMBOL(rt_spin_lock);
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 void __sched rt_spin_lock_nested(spinlock_t *lock, int subclass)
 {
 	spin_acquire(&lock->dep_map, subclass, 0, _RET_IP_);
@@ -129,7 +129,7 @@ int __sched rt_spin_trylock_bh(spinlock_t *lock)
 }
 EXPORT_SYMBOL(rt_spin_trylock_bh);
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 void __rt_spin_lock_init(spinlock_t *lock, const char *name,
 			 struct lock_class_key *key, bool percpu)
 {
@@ -239,7 +239,7 @@ void __sched rt_write_lock(rwlock_t *rwlock)
 }
 EXPORT_SYMBOL(rt_write_lock);
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 void __sched rt_write_lock_nested(rwlock_t *rwlock, int subclass)
 {
 	rtlock_might_resched();
@@ -269,7 +269,7 @@ void __sched rt_write_unlock(rwlock_t *rwlock)
 }
 EXPORT_SYMBOL(rt_write_unlock);
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 void __rt_rwlock_init(rwlock_t *rwlock, const char *name,
 		      struct lock_class_key *key)
 {

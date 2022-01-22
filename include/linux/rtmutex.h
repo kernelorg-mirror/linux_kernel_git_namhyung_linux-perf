@@ -56,7 +56,7 @@ extern void rt_mutex_base_init(struct rt_mutex_base *rtb);
  */
 struct rt_mutex {
 	struct rt_mutex_base	rtmutex;
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 	struct lockdep_map	dep_map;
 #endif
 };
@@ -76,7 +76,7 @@ do { \
 	__rt_mutex_init(mutex, __func__, &__key); \
 } while (0)
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 #define __DEP_MAP_RT_MUTEX_INITIALIZER(mutexname)	\
 	.dep_map = {					\
 		.name = #mutexname,			\
@@ -97,7 +97,7 @@ do { \
 
 extern void __rt_mutex_init(struct rt_mutex *lock, const char *name, struct lock_class_key *key);
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 extern void rt_mutex_lock_nested(struct rt_mutex *lock, unsigned int subclass);
 extern void _rt_mutex_lock_nest_lock(struct rt_mutex *lock, struct lockdep_map *nest_lock);
 #define rt_mutex_lock(lock) rt_mutex_lock_nested(lock, 0)

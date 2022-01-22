@@ -16,7 +16,7 @@
 #include <linux/atomic.h>
 #include <linux/err.h>
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 # define __RWSEM_DEP_MAP_INIT(lockname)			\
 	.dep_map = {					\
 		.name = #lockname,			\
@@ -60,7 +60,7 @@ struct rw_semaphore {
 #ifdef CONFIG_DEBUG_RWSEMS
 	void *magic;
 #endif
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 	struct lockdep_map	dep_map;
 #endif
 };
@@ -127,7 +127,7 @@ static inline int rwsem_is_contended(struct rw_semaphore *sem)
 
 struct rw_semaphore {
 	struct rwbase_rt	rwbase;
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 	struct lockdep_map	dep_map;
 #endif
 };

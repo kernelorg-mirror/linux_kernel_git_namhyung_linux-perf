@@ -1719,7 +1719,7 @@ static void xs_local_set_port(struct rpc_xprt *xprt, unsigned short port)
 {
 }
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 static struct lock_class_key xs_key[3];
 static struct lock_class_key xs_slock_key[3];
 

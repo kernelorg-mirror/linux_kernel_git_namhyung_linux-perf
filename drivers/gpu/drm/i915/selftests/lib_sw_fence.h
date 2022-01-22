@@ -12,7 +12,7 @@
 
 #include "../i915_sw_fence.h"
 
-#ifdef CONFIG_LOCKDEP
+#ifdef CONFIG_LOCK_INFO
 #define onstack_fence_init(fence)				\
 do {								\
 	static struct lock_class_key __key;			\

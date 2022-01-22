@@ -15,12 +15,12 @@ struct percpu_rw_semaphore {
 	struct rcuwait		writer;
 	wait_queue_head_t	waiters;
 	atomic_t		block;
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 	struct lockdep_map	dep_map;
 #endif
 };
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 #define __PERCPU_RWSEM_DEP_MAP_INIT(lockname)	.dep_map = { .name = #lockname },
 #else
 #define __PERCPU_RWSEM_DEP_MAP_INIT(lockname)

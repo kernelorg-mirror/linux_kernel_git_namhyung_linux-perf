@@ -1275,7 +1275,7 @@ struct journal_s
 	 */
 	__u32 j_csum_seed;
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 	/**
 	 * @j_trans_commit_map:
 	 *

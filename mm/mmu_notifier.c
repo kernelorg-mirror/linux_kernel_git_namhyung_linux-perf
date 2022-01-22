@@ -22,7 +22,7 @@
 /* global SRCU for all MMs */
 DEFINE_STATIC_SRCU(srcu);
 
-#ifdef CONFIG_LOCKDEP
+#ifdef CONFIG_LOCK_INFO
 struct lockdep_map __mmu_notifier_invalidate_range_start_map = {
 	.name = "mmu_notifier_invalidate_range_start"
 };

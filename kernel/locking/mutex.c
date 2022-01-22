@@ -149,7 +149,7 @@ static inline bool __mutex_trylock(struct mutex *lock)
 	return !__mutex_trylock_common(lock, false);
 }
 
-#ifndef CONFIG_DEBUG_LOCK_ALLOC
+#ifndef CONFIG_LOCK_INFO
 /*
  * Lockdep annotations are contained to the slow paths for simplicity.
  * There is nothing that would stop spreading the lockdep annotations outwards
@@ -245,7 +245,7 @@ static void __mutex_handoff(struct mutex *lock, struct task_struct *task)
 	}
 }
 
-#ifndef CONFIG_DEBUG_LOCK_ALLOC
+#ifndef CONFIG_LOCK_INFO
 /*
  * We split the mutex lock/unlock logic into separate fastpath and
  * slowpath functions, to reduce the register pressure on the fastpath.
@@ -533,7 +533,7 @@ static noinline void __sched __mutex_unlock_slowpath(struct mutex *lock, unsigne
  */
 void __sched mutex_unlock(struct mutex *lock)
 {
-#ifndef CONFIG_DEBUG_LOCK_ALLOC
+#ifndef CONFIG_LOCK_INFO
 	if (__mutex_unlock_fast(lock))
 		return;
 #endif
@@ -591,7 +591,7 @@ __mutex_lock_common(struct mutex *lock, unsigned int state, unsigned int subclas
 		if (ww_ctx->acquired == 0)
 			ww_ctx->wounded = 0;
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 		nest_lock = &ww_ctx->dep_map;
 #endif
 	}
@@ -778,7 +778,7 @@ int ww_mutex_trylock(struct ww_mutex *ww, struct ww_acquire_ctx *ww_ctx)
 }
 EXPORT_SYMBOL(ww_mutex_trylock);
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 void __sched
 mutex_lock_nested(struct mutex *lock, unsigned int subclass)
 {
@@ -937,7 +937,7 @@ static noinline void __sched __mutex_unlock_slowpath(struct mutex *lock, unsigne
 	wake_up_q(&wake_q);
 }
 
-#ifndef CONFIG_DEBUG_LOCK_ALLOC
+#ifndef CONFIG_LOCK_INFO
 /*
  * Here come the less common (and hence less performance-critical) APIs:
  * mutex_lock_interruptible() and mutex_trylock().
@@ -1078,7 +1078,7 @@ int __sched mutex_trylock(struct mutex *lock)
 }
 EXPORT_SYMBOL(mutex_trylock);
 
-#ifndef CONFIG_DEBUG_LOCK_ALLOC
+#ifndef CONFIG_LOCK_INFO
 int __sched
 ww_mutex_lock(struct ww_mutex *lock, struct ww_acquire_ctx *ctx)
 {
@@ -1109,7 +1109,7 @@ ww_mutex_lock_interruptible(struct ww_mutex *lock, struct ww_acquire_ctx *ctx)
 }
 EXPORT_SYMBOL(ww_mutex_lock_interruptible);
 
-#endif /* !CONFIG_DEBUG_LOCK_ALLOC */
+#endif /* !CONFIG_LOCK_INFO */
 #endif /* !CONFIG_PREEMPT_RT */
 
 /**

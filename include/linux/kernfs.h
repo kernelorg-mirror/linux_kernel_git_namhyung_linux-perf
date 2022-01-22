@@ -131,7 +131,7 @@ struct kernfs_elem_attr {
 struct kernfs_node {
 	atomic_t		count;
 	atomic_t		active;
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 	struct lockdep_map	dep_map;
 #endif
 	/*

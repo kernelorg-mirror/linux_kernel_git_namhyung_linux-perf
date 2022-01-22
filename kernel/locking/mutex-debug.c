@@ -79,7 +79,7 @@ void debug_mutex_unlock(struct mutex *lock)
 void debug_mutex_init(struct mutex *lock, const char *name,
 		      struct lock_class_key *key)
 {
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_LOCK_INFO
 	/*
 	 * Make sure we are not reinitializing a held lock:
 	 */
