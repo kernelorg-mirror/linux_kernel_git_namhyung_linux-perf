@@ -559,8 +559,8 @@ do {								\
 	if (!try(_lock)) {					\
 		lock_contended(&(_lock)->dep_map, _RET_IP_);	\
 		lock(_lock);					\
+		lock_acquired(&(_lock)->dep_map, _RET_IP_);	\
 	}							\
-	lock_acquired(&(_lock)->dep_map, _RET_IP_);			\
 } while (0)
 
 #define LOCK_CONTENDED_RETURN(_lock, try, lock)			\
@@ -569,9 +569,9 @@ do {								\
 	if (!try(_lock)) {					\
 		lock_contended(&(_lock)->dep_map, _RET_IP_);	\
 		____err = lock(_lock);				\
+		if (!____err)					\
+			lock_acquired(&(_lock)->dep_map, _RET_IP_); \
 	}							\
-	if (!____err)						\
-		lock_acquired(&(_lock)->dep_map, _RET_IP_);	\
 	____err;						\
 })
 
@@ -600,8 +600,8 @@ do {								\
 	if (!try(_lock)) {					\
 		lock_contended(&(_lock)->dep_map, _RET_IP_);	\
 		lock(_lock);					\
+		lock_acquired(&(_lock)->dep_map, _RET_IP_);	\
 	}							\
-	lock_acquired(&(_lock)->dep_map, _RET_IP_);		\
 } while (0)
 
 #define LOCK_CONTENDED_RETURN(_lock, try, lock)			\
@@ -610,9 +610,9 @@ do {								\
 	if (!try(_lock)) {					\
 		lock_contended(&(_lock)->dep_map, _RET_IP_);	\
 		____err = lock(_lock);				\
+		if (!____err)					\
+			lock_acquired(&(_lock)->dep_map, _RET_IP_); \
 	}							\
-	if (!____err)						\
-		lock_acquired(&(_lock)->dep_map, _RET_IP_);	\
 	____err;						\
 })
 

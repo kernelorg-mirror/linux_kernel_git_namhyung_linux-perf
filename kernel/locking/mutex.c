@@ -605,8 +605,6 @@ __mutex_lock_common(struct mutex *lock, unsigned int state, unsigned int subclas
 
 	if (__mutex_trylock(lock) ||
 	    mutex_optimistic_spin(lock, ww_ctx, NULL)) {
-		/* got the lock, yay! */
-		lock_acquired(&lock->dep_map, ip);
 		if (ww_ctx)
 			ww_mutex_set_context_fastpath(ww, ww_ctx);
 		preempt_enable();
@@ -708,10 +706,10 @@ acquired:
 
 	debug_mutex_free_waiter(&waiter);
 
-skip_wait:
 	/* got the lock - cleanup and rejoice! */
 	lock_acquired(&lock->dep_map, ip);
 
+skip_wait:
 	if (ww_ctx)
 		ww_mutex_lock_acquired(ww, ww_ctx);
 

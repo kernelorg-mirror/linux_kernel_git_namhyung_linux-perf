@@ -28,10 +28,10 @@ hooks therein::
             |    __contended
             |         |
             |       <wait>
+            |         |
+            |    __acquired
             | _______/
             |/
-            |
-       __acquired
             |
             .
           <hold>
