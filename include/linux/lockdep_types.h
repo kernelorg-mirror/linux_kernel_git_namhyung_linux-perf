@@ -197,9 +197,13 @@ struct pin_cookie { unsigned int val; };
 struct lock_class_key { };
 
 /*
- * The lockdep_map takes no space if lockdep is disabled:
+ * The lockdep_map takes no space if lockdep and lock_info is disabled:
  */
-struct lockdep_map { };
+struct lockdep_map {
+#ifdef CONFIG_LOCK_INFO
+	const char	*name;
+#endif
+};
 
 struct pin_cookie { };
 

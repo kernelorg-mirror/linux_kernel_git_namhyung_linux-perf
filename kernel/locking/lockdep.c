@@ -58,10 +58,12 @@
 
 #include <asm/sections.h>
 
-#include "lockdep_internals.h"
-
 #define CREATE_TRACE_POINTS
 #include <trace/events/lock.h>
+
+#ifdef CONFIG_LOCKDEP
+
+#include "lockdep_internals.h"
 
 #ifdef CONFIG_PROVE_LOCKING
 int prove_locking = 1;
@@ -6566,3 +6568,37 @@ void lockdep_rcu_suspicious(const char *file, const int line, const char *s)
 	dump_stack();
 }
 EXPORT_SYMBOL_GPL(lockdep_rcu_suspicious);
+
+#elif defined(CONFIG_LOCK_TRACEPOINTS)
+
+void __lock_acquire(struct lockdep_map *lock, unsigned int subclass,
+			  int trylock, int read, int check,
+			  struct lockdep_map *nest_lock, unsigned long ip)
+{
+	trace_lock_acquire(lock, subclass, trylock, read, check, nest_lock, ip);
+}
+EXPORT_SYMBOL_GPL(__lock_acquire);
+EXPORT_TRACEPOINT_SYMBOL_GPL(lock_acquire);
+
+void __lock_release(struct lockdep_map *lock, unsigned long ip)
+{
+	trace_lock_release(lock, ip);
+}
+EXPORT_SYMBOL_GPL(__lock_release);
+EXPORT_TRACEPOINT_SYMBOL_GPL(lock_release);
+
+void __lock_contended(struct lockdep_map *lock, unsigned long ip)
+{
+	trace_lock_contended(lock, ip);
+}
+EXPORT_SYMBOL_GPL(__lock_contended);
+EXPORT_TRACEPOINT_SYMBOL_GPL(lock_contended);
+
+void __lock_acquired(struct lockdep_map *lock, unsigned long ip)
+{
+	trace_lock_acquired(lock, ip);
+}
+EXPORT_SYMBOL_GPL(__lock_acquired);
+EXPORT_TRACEPOINT_SYMBOL_GPL(lock_acquired);
+
+#endif /* CONFIG_LOCKDEP */

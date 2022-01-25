@@ -1452,6 +1452,15 @@ config LOCK_INFO
 	bool
 	default n
 
+config LOCK_TRACEPOINTS
+	bool "Enable lock tracepoints"
+	depends on !LOCKDEP
+	select LOCK_INFO
+	help
+	  This enables all lock events required by "perf lock", subcommand of
+	  perf, without enabling LOCKDEP and LOCK_STAT.  If you want to use
+	  "perf lock", you also need to turn on CONFIG_EVENT_TRACING.
+
 config DEBUG_ATOMIC_SLEEP
 	bool "Sleep inside atomic section checking"
 	select PREEMPT_COUNT

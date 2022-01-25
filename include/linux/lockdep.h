@@ -14,6 +14,8 @@
 #include <linux/smp.h>
 #include <asm/percpu.h>
 
+#include <linux/tracepoint-defs.h>
+
 struct task_struct;
 
 /* for sysctl */
@@ -367,12 +369,104 @@ static inline void lockdep_set_selftest_task(struct task_struct *task)
 {
 }
 
+#ifdef CONFIG_LOCK_TRACEPOINTS
+DECLARE_TRACEPOINT(lock_acquire);
+DECLARE_TRACEPOINT(lock_release);
+
+extern void __lock_acquire(struct lockdep_map *lock, unsigned int subclass,
+			   int trylock, int read, int check,
+			   struct lockdep_map *nest_lock, unsigned long ip);
+extern void __lock_release(struct lockdep_map *lock, unsigned long ip);
+
+static inline void lock_acquire(struct lockdep_map *lock, unsigned int subclass,
+				int trylock, int read, int check,
+				struct lockdep_map *nest_lock, unsigned long ip)
+{
+	if (tracepoint_enabled(lock_acquire))
+		__lock_acquire(lock, subclass, trylock, read, check, nest_lock, ip);
+}
+
+static inline void lock_release(struct lockdep_map *lock, unsigned long ip)
+{
+	if (tracepoint_enabled(lock_release))
+		__lock_release(lock, ip);
+}
+#else /* !CONFIG_LOCK_TRACEPOINTS */
 # define lock_acquire(l, s, t, r, c, n, i)	do { } while (0)
 # define lock_release(l, i)			do { } while (0)
+#endif /* CONFIG_LOCK_TRACEPOINTS */
+
 # define lock_downgrade(l, i)			do { } while (0)
 # define lock_set_class(l, n, k, s, i)		do { } while (0)
 # define lock_set_subclass(l, s, i)		do { } while (0)
 # define lockdep_init()				do { } while (0)
+
+#ifdef CONFIG_LOCK_INFO
+
+static inline void
+lockdep_init_map_type(struct lockdep_map *lock, const char *name,
+		      struct lock_class_key *key, int subclass,
+		      u8 inner, u8 outer, u8 type)
+{
+	if (!name)
+		name = "NULL";
+
+	lock->name = name;
+}
+
+static inline void
+lockdep_init_map_waits(struct lockdep_map *lock, const char *name,
+		       struct lock_class_key *key, int subclass,
+		       u8 inner, u8 outer)
+{
+	lockdep_init_map_type(lock, name, key, subclass, inner, outer, 0);
+}
+
+static inline void
+lockdep_init_map_wait(struct lockdep_map *lock, const char *name,
+		      struct lock_class_key *key, int subclass, u8 inner)
+{
+	lockdep_init_map_waits(lock, name, key, subclass, inner, 0);
+}
+
+static inline void
+lockdep_init_map(struct lockdep_map *lock, const char *name,
+		 struct lock_class_key *key, int subclass)
+{
+	lockdep_init_map_wait(lock, name, key, subclass, 0);
+}
+
+/* Reinitialize a lock name - other info will be ignore. */
+# define lockdep_set_class(lock, key)				\
+	lockdep_init_map(&(lock)->dep_map, #key, key, 0)
+
+# define lockdep_set_class_and_name(lock, key, name)		\
+	lockdep_init_map(&(lock)->dep_map, name, key, 0)
+
+# define lockdep_set_class_and_subclass(lock, key, sub)		\
+	lockdep_init_map(&(lock)->dep_map, #key, key, sub)
+
+# define lockdep_set_subclass(lock, sub)			\
+	lockdep_init_map(&(lock)->dep_map, #lock, NULL, sub)
+
+# define lockdep_set_novalidate_class(lock) \
+	lockdep_set_class_and_name(lock, NULL, #lock)
+
+/*
+ * To initialize a lockdep_map statically use this macro.
+ * Note that _name must not be NULL.
+ */
+# define STATIC_LOCKDEP_MAP_INIT(_name, _key)			\
+	{ .name = (_name), }
+
+# define STATIC_LOCKDEP_MAP_INIT_WAIT(_name, _key, _inner)	\
+	{ .name = (_name), }
+
+# define STATIC_LOCKDEP_MAP_INIT_TYPE(_name, _key, _inner, _outer, _type) \
+	{ .name = (_name), }
+
+#else /* !CONFIG_LOCK_INFO */
+
 # define lockdep_init_map_type(lock, name, key, sub, inner, outer, type) \
 		do { (void)(name); (void)(key); } while (0)
 # define lockdep_init_map_waits(lock, name, key, sub, inner, outer) \
@@ -393,6 +487,8 @@ static inline void lockdep_set_selftest_task(struct task_struct *task)
 #define STATIC_LOCKDEP_MAP_INIT(_name, _key) { }
 #define STATIC_LOCKDEP_MAP_INIT_WAIT(_name, _key, _inner) { }
 #define STATIC_LOCKDEP_MAP_INIT_TYPE(_name, _key, _inner, _outer, _type) { }
+
+#endif /* CONFIG_LOCK_INFO */
 
 /*
  * We don't define lockdep_match_class() and lockdep_match_key() for !LOCKDEP
@@ -479,7 +575,48 @@ do {								\
 	____err;						\
 })
 
-#else /* CONFIG_LOCK_STAT */
+#elif defined(CONFIG_LOCK_TRACEPOINTS)
+
+DECLARE_TRACEPOINT(lock_contended);
+DECLARE_TRACEPOINT(lock_acquired);
+
+extern void __lock_contended(struct lockdep_map *lock, unsigned long ip);
+extern void __lock_acquired(struct lockdep_map *lock, unsigned long ip);
+
+static inline void lock_contended(struct lockdep_map *lock, unsigned long ip)
+{
+	if (tracepoint_enabled(lock_contended))
+		__lock_contended(lock, ip);
+}
+
+static inline void lock_acquired(struct lockdep_map *lock, unsigned long ip)
+{
+	if (tracepoint_enabled(lock_acquired))
+		__lock_acquired(lock, ip);
+}
+
+#define LOCK_CONTENDED(_lock, try, lock)			\
+do {								\
+	if (!try(_lock)) {					\
+		lock_contended(&(_lock)->dep_map, _RET_IP_);	\
+		lock(_lock);					\
+	}							\
+	lock_acquired(&(_lock)->dep_map, _RET_IP_);		\
+} while (0)
+
+#define LOCK_CONTENDED_RETURN(_lock, try, lock)			\
+({								\
+	int ____err = 0;					\
+	if (!try(_lock)) {					\
+		lock_contended(&(_lock)->dep_map, _RET_IP_);	\
+		____err = lock(_lock);				\
+	}							\
+	if (!____err)						\
+		lock_acquired(&(_lock)->dep_map, _RET_IP_);	\
+	____err;						\
+})
+
+#else /* !CONFIG_LOCK_STAT && !CONFIG_LOCK_TRACEPOINTS */
 
 #define lock_contended(lockdep_map, ip) do {} while (0)
 #define lock_acquired(lockdep_map, ip) do {} while (0)
@@ -490,7 +627,7 @@ do {								\
 #define LOCK_CONTENDED_RETURN(_lock, try, lock) \
 	lock(_lock)
 
-#endif /* CONFIG_LOCK_STAT */
+#endif /* CONFIG_LOCK_STAT || CONFIG_LOCK_TRACEPOINTS */
 
 #ifdef CONFIG_PROVE_LOCKING
 extern void print_irqtrace_events(struct task_struct *curr);
