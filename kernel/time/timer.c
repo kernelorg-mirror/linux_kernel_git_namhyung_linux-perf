@@ -794,7 +794,10 @@ static void do_init_timer(struct timer_list *timer,
 	if (WARN_ON_ONCE(flags & ~TIMER_INIT_FLAGS))
 		flags &= TIMER_INIT_FLAGS;
 	timer->flags = flags | raw_smp_processor_id();
+
+#ifdef CONFIG_LOCKDEP
 	lockdep_init_map(&timer->lockdep_map, name, key, 0);
+#endif
 }
 
 /**
@@ -1409,19 +1412,22 @@ static void call_timer_fn(struct timer_list *timer,
 	struct lockdep_map lockdep_map;
 
 	lockdep_copy_map(&lockdep_map, &timer->lockdep_map);
-#endif
+
 	/*
 	 * Couple the lock chain with the lock chain at
 	 * del_timer_sync() by acquiring the lock_map around the fn()
 	 * call here and in del_timer_sync().
 	 */
 	lock_map_acquire(&lockdep_map);
+#endif
 
 	trace_timer_expire_entry(timer, baseclk);
 	fn(timer);
 	trace_timer_expire_exit(timer);
 
+#ifdef CONFIG_LOCKDEP
 	lock_map_release(&lockdep_map);
+#endif
 
 	if (count != preempt_count()) {
 		WARN_ONCE(1, "timer: %pS preempt leak: %08x -> %08x\n",
