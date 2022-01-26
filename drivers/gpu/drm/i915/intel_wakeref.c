@@ -106,8 +106,11 @@ void __intel_wakeref_init(struct intel_wakeref *wf,
 	wf->wakeref = 0;
 
 	INIT_DELAYED_WORK(&wf->work, __intel_wakeref_put_work);
+
+#ifdef CONFIG_LOCKDEP
 	lockdep_init_map(&wf->work.work.lockdep_map,
 			 "wakeref.work", &key->work, 0);
+#endif
 }
 
 int intel_wakeref_wait_for_idle(struct intel_wakeref *wf)
