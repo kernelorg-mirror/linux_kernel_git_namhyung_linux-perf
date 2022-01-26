@@ -2279,8 +2279,11 @@ __acquires(&pool->lock)
 
 	raw_spin_unlock_irq(&pool->lock);
 
+#ifdef CONFIG_LOCKDEP
 	lock_map_acquire(&pwq->wq->lockdep_map);
 	lock_map_acquire(&lockdep_map);
+#endif
+
 	/*
 	 * Strictly speaking we should mark the invariant state without holding
 	 * any locks, that is, before these two lock_map_acquire()'s.
@@ -2310,8 +2313,11 @@ __acquires(&pool->lock)
 	 * point will only record its address.
 	 */
 	trace_workqueue_execute_end(work, worker->current_func);
+
+#ifdef CONFIG_LOCKDEP
 	lock_map_release(&lockdep_map);
 	lock_map_release(&pwq->wq->lockdep_map);
+#endif
 
 	if (unlikely(in_atomic() || lockdep_depth(current) > 0)) {
 		pr_err("BUG: workqueue leaked lock or atomic: %s/0x%08x/%d\n"
@@ -2824,8 +2830,10 @@ void flush_workqueue(struct workqueue_struct *wq)
 	if (WARN_ON(!wq_online))
 		return;
 
+#ifdef CONFIG_LOCKDEP
 	lock_map_acquire(&wq->lockdep_map);
 	lock_map_release(&wq->lockdep_map);
+#endif
 
 	mutex_lock(&wq->mutex);
 
@@ -3052,6 +3060,7 @@ static bool start_flush_work(struct work_struct *work, struct wq_barrier *barr,
 	insert_wq_barrier(pwq, barr, work, worker);
 	raw_spin_unlock_irq(&pool->lock);
 
+#ifdef CONFIG_LOCKDEP
 	/*
 	 * Force a lock recursion deadlock when using flush_work() inside a
 	 * single-threaded or rescuer equipped workqueue.
@@ -3066,6 +3075,8 @@ static bool start_flush_work(struct work_struct *work, struct wq_barrier *barr,
 		lock_map_acquire(&pwq->wq->lockdep_map);
 		lock_map_release(&pwq->wq->lockdep_map);
 	}
+#endif
+
 	rcu_read_unlock();
 	return true;
 already_gone:
@@ -3084,10 +3095,12 @@ static bool __flush_work(struct work_struct *work, bool from_cancel)
 	if (WARN_ON(!work->func))
 		return false;
 
+#ifdef CONFIG_LOCKDEP
 	if (!from_cancel) {
 		lock_map_acquire(&work->lockdep_map);
 		lock_map_release(&work->lockdep_map);
 	}
+#endif
 
 	if (start_flush_work(work, &barr, from_cancel)) {
 		wait_for_completion(&barr.done);
