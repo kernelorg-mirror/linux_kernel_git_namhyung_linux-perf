@@ -41,5 +41,12 @@ extern void debug_mutex_init(struct mutex *lock, const char *name,
 # define debug_mutex_add_waiter(lock, waiter, ti)	do { } while (0)
 # define debug_mutex_remove_waiter(lock, waiter, ti)	do { } while (0)
 # define debug_mutex_unlock(lock)			do { } while (0)
+
+#ifdef CONFIG_LOCK_INFO
+# define debug_mutex_init(lock, name, key)			\
+		lockdep_set_class_and_name(lock, key, name)
+#else
 # define debug_mutex_init(lock, name, key)		do { } while (0)
+#endif /* !CONFIG_LOCK_INFO */
+
 #endif /* !CONFIG_DEBUG_MUTEXES */
