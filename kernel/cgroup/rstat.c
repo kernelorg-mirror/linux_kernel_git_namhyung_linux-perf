@@ -286,9 +286,12 @@ void cgroup_rstat_exit(struct cgroup *cgrp)
 void __init cgroup_rstat_boot(void)
 {
 	int cpu;
+	raw_spinlock_t *cgrp_rstat_cpu_lock;
 
-	for_each_possible_cpu(cpu)
-		raw_spin_lock_init(per_cpu_ptr(&cgroup_rstat_cpu_lock, cpu));
+	for_each_possible_cpu(cpu) {
+		cgrp_rstat_cpu_lock = per_cpu_ptr(&cgroup_rstat_cpu_lock, cpu);
+		raw_spin_lock_init(cgrp_rstat_cpu_lock);
+	}
 }
 
 /*
