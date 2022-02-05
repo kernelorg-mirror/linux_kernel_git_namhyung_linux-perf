@@ -149,7 +149,7 @@ static inline bool __mutex_trylock(struct mutex *lock)
 	return !__mutex_trylock_common(lock, false);
 }
 
-#ifndef CONFIG_LOCK_INFO
+#ifndef CONFIG_DEBUG_LOCK_ALLOC
 /*
  * Lockdep annotations are contained to the slow paths for simplicity.
  * There is nothing that would stop spreading the lockdep annotations outwards
@@ -245,7 +245,7 @@ static void __mutex_handoff(struct mutex *lock, struct task_struct *task)
 	}
 }
 
-#ifndef CONFIG_LOCK_INFO
+#ifndef CONFIG_DEBUG_LOCK_ALLOC
 /*
  * We split the mutex lock/unlock logic into separate fastpath and
  * slowpath functions, to reduce the register pressure on the fastpath.
@@ -281,6 +281,8 @@ void __sched mutex_lock(struct mutex *lock)
 
 	if (!__mutex_trylock_fast(lock))
 		__mutex_lock_slowpath(lock);
+	else
+		mutex_acquire(&lock->dep_map, 0, 0, _RET_IP_);
 }
 EXPORT_SYMBOL(mutex_lock);
 #endif
@@ -533,9 +535,11 @@ static noinline void __sched __mutex_unlock_slowpath(struct mutex *lock, unsigne
  */
 void __sched mutex_unlock(struct mutex *lock)
 {
-#ifndef CONFIG_LOCK_INFO
-	if (__mutex_unlock_fast(lock))
+#ifndef CONFIG_DEBUG_LOCK_ALLOC
+	if (__mutex_unlock_fast(lock)) {
+		mutex_release(&lock->dep_map, _RET_IP_);
 		return;
+	}
 #endif
 	__mutex_unlock_slowpath(lock, _RET_IP_);
 }
@@ -591,7 +595,7 @@ __mutex_lock_common(struct mutex *lock, unsigned int state, unsigned int subclas
 		if (ww_ctx->acquired == 0)
 			ww_ctx->wounded = 0;
 
-#ifdef CONFIG_LOCK_INFO
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
 		nest_lock = &ww_ctx->dep_map;
 #endif
 	}
@@ -778,7 +782,7 @@ int ww_mutex_trylock(struct ww_mutex *ww, struct ww_acquire_ctx *ww_ctx)
 }
 EXPORT_SYMBOL(ww_mutex_trylock);
 
-#ifdef CONFIG_LOCK_INFO
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
 void __sched
 mutex_lock_nested(struct mutex *lock, unsigned int subclass)
 {
@@ -937,7 +941,7 @@ static noinline void __sched __mutex_unlock_slowpath(struct mutex *lock, unsigne
 	wake_up_q(&wake_q);
 }
 
-#ifndef CONFIG_LOCK_INFO
+#ifndef CONFIG_DEBUG_LOCK_ALLOC
 /*
  * Here come the less common (and hence less performance-critical) APIs:
  * mutex_lock_interruptible() and mutex_trylock().
@@ -964,8 +968,10 @@ int __sched mutex_lock_interruptible(struct mutex *lock)
 {
 	might_sleep();
 
-	if (__mutex_trylock_fast(lock))
+	if (__mutex_trylock_fast(lock)) {
+		mutex_acquire(&lock->dep_map, 0, 0, _RET_IP_);
 		return 0;
+	}
 
 	return __mutex_lock_interruptible_slowpath(lock);
 }
@@ -988,8 +994,10 @@ int __sched mutex_lock_killable(struct mutex *lock)
 {
 	might_sleep();
 
-	if (__mutex_trylock_fast(lock))
+	if (__mutex_trylock_fast(lock)) {
+		mutex_acquire(&lock->dep_map, 0, 0, _RET_IP_);
 		return 0;
+	}
 
 	return __mutex_lock_killable_slowpath(lock);
 }
@@ -1078,7 +1086,7 @@ int __sched mutex_trylock(struct mutex *lock)
 }
 EXPORT_SYMBOL(mutex_trylock);
 
-#ifndef CONFIG_LOCK_INFO
+#ifndef CONFIG_DEBUG_LOCK_ALLOC
 int __sched
 ww_mutex_lock(struct ww_mutex *lock, struct ww_acquire_ctx *ctx)
 {
@@ -1087,6 +1095,7 @@ ww_mutex_lock(struct ww_mutex *lock, struct ww_acquire_ctx *ctx)
 	if (__mutex_trylock_fast(&lock->base)) {
 		if (ctx)
 			ww_mutex_set_context_fastpath(lock, ctx);
+		mutex_acquire(&lock->base.dep_map, 0, 0, _RET_IP_);
 		return 0;
 	}
 
@@ -1102,6 +1111,7 @@ ww_mutex_lock_interruptible(struct ww_mutex *lock, struct ww_acquire_ctx *ctx)
 	if (__mutex_trylock_fast(&lock->base)) {
 		if (ctx)
 			ww_mutex_set_context_fastpath(lock, ctx);
+		mutex_acquire(&lock->base.dep_map, 0, 0, _RET_IP_);
 		return 0;
 	}
 
