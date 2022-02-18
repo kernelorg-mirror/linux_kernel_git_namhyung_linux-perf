@@ -32,6 +32,7 @@
 #include <linux/semaphore.h>
 #include <linux/spinlock.h>
 #include <linux/ftrace.h>
+#include <trace/events/lock.h>
 
 static noinline void __down(struct semaphore *sem);
 static noinline int __down_interruptible(struct semaphore *sem);
@@ -209,6 +210,7 @@ static inline int __sched __down_common(struct semaphore *sem, long state,
 								long timeout)
 {
 	struct semaphore_waiter waiter;
+	bool tracing = false;
 
 	list_add_tail(&waiter.list, &sem->wait_list);
 	waiter.task = current;
@@ -220,18 +222,28 @@ static inline int __sched __down_common(struct semaphore *sem, long state,
 		if (unlikely(timeout <= 0))
 			goto timed_out;
 		__set_current_state(state);
+		if (!tracing) {
+			trace_contention_begin(sem, 0);
+			tracing = true;
+		}
 		raw_spin_unlock_irq(&sem->lock);
 		timeout = schedule_timeout(timeout);
 		raw_spin_lock_irq(&sem->lock);
-		if (waiter.up)
+		if (waiter.up) {
+			trace_contention_end(sem, 0);
 			return 0;
+		}
 	}
 
  timed_out:
+	if (tracing)
+		trace_contention_end(sem, -ETIME);
 	list_del(&waiter.list);
 	return -ETIME;
 
  interrupted:
+	if (tracing)
+		trace_contention_end(sem, -EINTR);
 	list_del(&waiter.list);
 	return -EINTR;
 }
