@@ -6,6 +6,7 @@
 #define _TRACE_LOCK_H
 
 #include <linux/tracepoint.h>
+#include <linux/lock_trace.h>
 
 #ifdef CONFIG_LOCKDEP
 

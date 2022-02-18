@@ -12,6 +12,7 @@
 
 #include <asm-generic/qspinlock_types.h>
 #include <linux/atomic.h>
+#include <linux/lock_trace.h>
 
 #ifndef queued_spin_is_locked
 /**
@@ -82,7 +83,9 @@ static __always_inline void queued_spin_lock(struct qspinlock *lock)
 	if (likely(atomic_try_cmpxchg_acquire(&lock->val, &val, _Q_LOCKED_VAL)))
 		return;
 
+	LOCK_CONTENTION_BEGIN(lock, 0);
 	queued_spin_lock_slowpath(lock, val);
+	LOCK_CONTENTION_END(lock);
 }
 #endif
 

@@ -9,6 +9,7 @@
 #include <linux/sched/task.h>
 #include <linux/sched/debug.h>
 #include <linux/errno.h>
+#include <trace/events/lock.h>
 
 int __percpu_init_rwsem(struct percpu_rw_semaphore *sem,
 			const char *name, struct lock_class_key *key)
@@ -171,9 +172,12 @@ bool __sched __percpu_down_read(struct percpu_rw_semaphore *sem, bool try)
 	if (try)
 		return false;
 
+	trace_contention_begin(sem, _RET_IP_,
+			       LCB_F_READ | LCB_F_PERCPU | TASK_UNINTERRUPTIBLE);
 	preempt_enable();
 	percpu_rwsem_wait(sem, /* .reader = */ true);
 	preempt_disable();
+	trace_contention_end(sem);
 
 	return true;
 }
@@ -224,8 +228,13 @@ void __sched percpu_down_write(struct percpu_rw_semaphore *sem)
 	 * Try set sem->block; this provides writer-writer exclusion.
 	 * Having sem->block set makes new readers block.
 	 */
-	if (!__percpu_down_write_trylock(sem))
+	if (!__percpu_down_write_trylock(sem)) {
+		unsigned int flags = LCB_F_WRITE | LCB_F_PERCPU | TASK_UNINTERRUPTIBLE;
+
+		trace_contention_begin(sem, _RET_IP_, flags);
 		percpu_rwsem_wait(sem, /* .reader = */ false);
+		trace_contention_end(sem);
+	}
 
 	/* smp_mb() implied by __percpu_down_write_trylock() on success -- D matches A */
 

@@ -12,6 +12,7 @@
 #include <linux/atomic.h>
 #include <asm/barrier.h>
 #include <asm/processor.h>
+#include <linux/lock_trace.h>
 
 #include <asm-generic/qrwlock_types.h>
 
@@ -80,7 +81,9 @@ static inline void queued_read_lock(struct qrwlock *lock)
 		return;
 
 	/* The slowpath will decrement the reader count, if necessary. */
+	LOCK_CONTENTION_BEGIN(lock, LCB_F_READ);
 	queued_read_lock_slowpath(lock);
+	LOCK_CONTENTION_END(lock);
 }
 
 /**
@@ -94,7 +97,9 @@ static inline void queued_write_lock(struct qrwlock *lock)
 	if (likely(atomic_try_cmpxchg_acquire(&lock->cnts, &cnts, _QW_LOCKED)))
 		return;
 
+	LOCK_CONTENTION_BEGIN(lock, LCB_F_WRITE);
 	queued_write_lock_slowpath(lock);
+	LOCK_CONTENTION_END(lock);
 }
 
 /**

@@ -24,6 +24,8 @@
 #include <linux/sched/wake_q.h>
 #include <linux/ww_mutex.h>
 
+#include <trace/events/lock.h>
+
 #include "rtmutex_common.h"
 
 #ifndef WW_RT
@@ -1652,10 +1654,16 @@ static int __sched rt_mutex_slowlock(struct rt_mutex_base *lock,
 static __always_inline int __rt_mutex_lock(struct rt_mutex_base *lock,
 					   unsigned int state)
 {
+	int ret;
+
 	if (likely(rt_mutex_cmpxchg_acquire(lock, NULL, current)))
 		return 0;
 
-	return rt_mutex_slowlock(lock, NULL, state);
+	trace_contention_begin(lock, _RET_IP_, LCB_F_RT | state);
+	ret = rt_mutex_slowlock(lock, NULL, state);
+	trace_contention_end(lock);
+
+	return ret;
 }
 #endif /* RT_MUTEX_BUILD_MUTEX */
 
@@ -1718,9 +1726,11 @@ static __always_inline void __sched rtlock_slowlock(struct rt_mutex_base *lock)
 {
 	unsigned long flags;
 
+	trace_contention_begin(lock, _RET_IP_, LCB_F_RT | TASK_RTLOCK_WAIT);
 	raw_spin_lock_irqsave(&lock->wait_lock, flags);
 	rtlock_slowlock_locked(lock);
 	raw_spin_unlock_irqrestore(&lock->wait_lock, flags);
+	trace_contention_end(lock);
 }
 
 #endif /* RT_MUTEX_BUILD_SPINLOCKS */

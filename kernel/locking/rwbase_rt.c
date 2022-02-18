@@ -136,10 +136,16 @@ static int __sched __rwbase_read_lock(struct rwbase_rt *rwb,
 static __always_inline int rwbase_read_lock(struct rwbase_rt *rwb,
 					    unsigned int state)
 {
+	int ret;
+
 	if (rwbase_read_trylock(rwb))
 		return 0;
 
-	return __rwbase_read_lock(rwb, state);
+	trace_contention_begin(rwb, _RET_IP_, LCB_F_READ | LCB_F_RT | state);
+	ret = __rwbase_read_lock(rwb, state);
+	trace_contention_end(rwb);
+
+	return ret;
 }
 
 static void __sched __rwbase_read_unlock(struct rwbase_rt *rwb,
@@ -246,12 +252,14 @@ static int __sched rwbase_write_lock(struct rwbase_rt *rwb,
 	if (__rwbase_write_trylock(rwb))
 		goto out_unlock;
 
+	trace_contention_begin(rwb, _RET_IP_, LCB_F_WRITE | LCB_F_RT | state);
 	rwbase_set_and_save_current_state(state);
 	for (;;) {
 		/* Optimized out for rwlocks */
 		if (rwbase_signal_pending_state(state, current)) {
 			rwbase_restore_current_state();
 			__rwbase_write_unlock(rwb, 0, flags);
+			trace_contention_end(rwb);
 			return -EINTR;
 		}
 
@@ -265,6 +273,7 @@ static int __sched rwbase_write_lock(struct rwbase_rt *rwb,
 		set_current_state(state);
 	}
 	rwbase_restore_current_state();
+	trace_contention_end(rwb);
 
 out_unlock:
 	raw_spin_unlock_irqrestore(&rtm->wait_lock, flags);

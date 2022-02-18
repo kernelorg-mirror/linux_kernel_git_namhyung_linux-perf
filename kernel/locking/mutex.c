@@ -30,6 +30,8 @@
 #include <linux/debug_locks.h>
 #include <linux/osq_lock.h>
 
+#include <trace/events/lock.h>
+
 #ifndef CONFIG_PREEMPT_RT
 #include "mutex.h"
 
@@ -626,6 +628,7 @@ __mutex_lock_common(struct mutex *lock, unsigned int state, unsigned int subclas
 		waiter.ww_ctx = ww_ctx;
 
 	lock_contended(&lock->dep_map, ip);
+	trace_contention_begin(lock, ip, state);
 
 	if (!use_ww_ctx) {
 		/* add waiting tasks to the end of the waitqueue (FIFO): */
@@ -688,6 +691,7 @@ __mutex_lock_common(struct mutex *lock, unsigned int state, unsigned int subclas
 	}
 	raw_spin_lock(&lock->wait_lock);
 acquired:
+	trace_contention_end(lock);
 	__set_current_state(TASK_RUNNING);
 
 	if (ww_ctx) {

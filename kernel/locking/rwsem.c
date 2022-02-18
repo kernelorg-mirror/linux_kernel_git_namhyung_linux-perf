@@ -27,6 +27,7 @@
 #include <linux/export.h>
 #include <linux/rwsem.h>
 #include <linux/atomic.h>
+#include <trace/events/lock.h>
 
 #ifndef CONFIG_PREEMPT_RT
 #include "lock_events.h"
@@ -1209,9 +1210,14 @@ static struct rw_semaphore *rwsem_downgrade_wake(struct rw_semaphore *sem)
 static inline int __down_read_common(struct rw_semaphore *sem, int state)
 {
 	long count;
+	void *ret;
 
 	if (!rwsem_read_trylock(sem, &count)) {
-		if (IS_ERR(rwsem_down_read_slowpath(sem, count, state)))
+		trace_contention_begin(sem, _RET_IP_, LCB_F_READ | state);
+		ret = rwsem_down_read_slowpath(sem, count, state);
+		trace_contention_end(sem);
+
+		if (IS_ERR(ret))
 			return -EINTR;
 		DEBUG_RWSEMS_WARN_ON(!is_rwsem_reader_owned(sem), sem);
 	}
@@ -1255,8 +1261,14 @@ static inline int __down_read_trylock(struct rw_semaphore *sem)
  */
 static inline int __down_write_common(struct rw_semaphore *sem, int state)
 {
+	void *ret;
+
 	if (unlikely(!rwsem_write_trylock(sem))) {
-		if (IS_ERR(rwsem_down_write_slowpath(sem, state)))
+		trace_contention_begin(sem, _RET_IP_, LCB_F_WRITE | state);
+		ret = rwsem_down_write_slowpath(sem, state);
+		trace_contention_end(sem);
+
+		if (IS_ERR(ret))
 			return -EINTR;
 	}
 
