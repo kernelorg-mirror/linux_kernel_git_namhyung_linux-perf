@@ -3,7 +3,7 @@
 # and is generally not a function of system call inputs.
 KCOV_INSTRUMENT		:= n
 
-obj-y += mutex.o semaphore.o rwsem.o percpu-rwsem.o
+obj-y += mutex.o semaphore.o rwsem.o percpu-rwsem.o tracepoint.o
 
 # Avoid recursion lockdep -> KCSAN -> ... -> lockdep.
 KCSAN_SANITIZE_lockdep.o := n
