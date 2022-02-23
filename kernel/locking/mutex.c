@@ -254,7 +254,7 @@ static void __mutex_handoff(struct mutex *lock, struct task_struct *task)
  * We also put the fastpath first in the kernel image, to make sure the
  * branch is predicted by the CPU as default-untaken.
  */
-static void __sched __mutex_lock_slowpath(struct mutex *lock);
+static void __sched __mutex_lock_slowpath(struct mutex *lock, unsigned long ip);
 
 /**
  * mutex_lock - acquire the mutex
@@ -282,7 +282,7 @@ void __sched mutex_lock(struct mutex *lock)
 	might_sleep();
 
 	if (!__mutex_trylock_fast(lock))
-		__mutex_lock_slowpath(lock);
+		__mutex_lock_slowpath(lock, _RET_IP_);
 }
 EXPORT_SYMBOL(mutex_lock);
 #endif
@@ -947,10 +947,10 @@ static noinline void __sched __mutex_unlock_slowpath(struct mutex *lock, unsigne
  * mutex_lock_interruptible() and mutex_trylock().
  */
 static noinline int __sched
-__mutex_lock_killable_slowpath(struct mutex *lock);
+__mutex_lock_killable_slowpath(struct mutex *lock, unsigned long ip);
 
 static noinline int __sched
-__mutex_lock_interruptible_slowpath(struct mutex *lock);
+__mutex_lock_interruptible_slowpath(struct mutex *lock, unsigned long ip);
 
 /**
  * mutex_lock_interruptible() - Acquire the mutex, interruptible by signals.
@@ -971,7 +971,7 @@ int __sched mutex_lock_interruptible(struct mutex *lock)
 	if (__mutex_trylock_fast(lock))
 		return 0;
 
-	return __mutex_lock_interruptible_slowpath(lock);
+	return __mutex_lock_interruptible_slowpath(lock, _RET_IP_);
 }
 
 EXPORT_SYMBOL(mutex_lock_interruptible);
@@ -995,7 +995,7 @@ int __sched mutex_lock_killable(struct mutex *lock)
 	if (__mutex_trylock_fast(lock))
 		return 0;
 
-	return __mutex_lock_killable_slowpath(lock);
+	return __mutex_lock_killable_slowpath(lock, _RET_IP_);
 }
 EXPORT_SYMBOL(mutex_lock_killable);
 
@@ -1020,36 +1020,36 @@ void __sched mutex_lock_io(struct mutex *lock)
 EXPORT_SYMBOL_GPL(mutex_lock_io);
 
 static noinline void __sched
-__mutex_lock_slowpath(struct mutex *lock)
+__mutex_lock_slowpath(struct mutex *lock, unsigned long ip)
 {
-	__mutex_lock(lock, TASK_UNINTERRUPTIBLE, 0, NULL, _RET_IP_);
+	__mutex_lock(lock, TASK_UNINTERRUPTIBLE, 0, NULL, ip);
 }
 
 static noinline int __sched
-__mutex_lock_killable_slowpath(struct mutex *lock)
+__mutex_lock_killable_slowpath(struct mutex *lock, unsigned long ip)
 {
-	return __mutex_lock(lock, TASK_KILLABLE, 0, NULL, _RET_IP_);
+	return __mutex_lock(lock, TASK_KILLABLE, 0, NULL, ip);
 }
 
 static noinline int __sched
-__mutex_lock_interruptible_slowpath(struct mutex *lock)
+__mutex_lock_interruptible_slowpath(struct mutex *lock, unsigned long ip)
 {
-	return __mutex_lock(lock, TASK_INTERRUPTIBLE, 0, NULL, _RET_IP_);
+	return __mutex_lock(lock, TASK_INTERRUPTIBLE, 0, NULL, ip);
 }
 
 static noinline int __sched
-__ww_mutex_lock_slowpath(struct ww_mutex *lock, struct ww_acquire_ctx *ctx)
+__ww_mutex_lock_slowpath(struct ww_mutex *lock, struct ww_acquire_ctx *ctx,
+			 unsigned long ip)
 {
-	return __ww_mutex_lock(&lock->base, TASK_UNINTERRUPTIBLE, 0,
-			       _RET_IP_, ctx);
+	return __ww_mutex_lock(&lock->base, TASK_UNINTERRUPTIBLE, 0, ip, ctx);
 }
 
 static noinline int __sched
 __ww_mutex_lock_interruptible_slowpath(struct ww_mutex *lock,
-					    struct ww_acquire_ctx *ctx)
+				       struct ww_acquire_ctx *ctx,
+				       unsigned long ip)
 {
-	return __ww_mutex_lock(&lock->base, TASK_INTERRUPTIBLE, 0,
-			       _RET_IP_, ctx);
+	return __ww_mutex_lock(&lock->base, TASK_INTERRUPTIBLE, 0, ip, ctx);
 }
 
 #endif
@@ -1094,7 +1094,7 @@ ww_mutex_lock(struct ww_mutex *lock, struct ww_acquire_ctx *ctx)
 		return 0;
 	}
 
-	return __ww_mutex_lock_slowpath(lock, ctx);
+	return __ww_mutex_lock_slowpath(lock, ctx, _RET_IP_);
 }
 EXPORT_SYMBOL(ww_mutex_lock);
 
@@ -1109,7 +1109,7 @@ ww_mutex_lock_interruptible(struct ww_mutex *lock, struct ww_acquire_ctx *ctx)
 		return 0;
 	}
 
-	return __ww_mutex_lock_interruptible_slowpath(lock, ctx);
+	return __ww_mutex_lock_interruptible_slowpath(lock, ctx, _RET_IP_);
 }
 EXPORT_SYMBOL(ww_mutex_lock_interruptible);
 
