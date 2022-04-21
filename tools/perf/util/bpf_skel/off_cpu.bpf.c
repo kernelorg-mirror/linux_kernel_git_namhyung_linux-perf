@@ -121,21 +121,12 @@ static inline int can_record(struct task_struct *t, int state)
 	return 1;
 }
 
-SEC("tp_btf/sched_switch")
-int on_switch(u64 *ctx)
+static int on_switch(u64 *ctx, struct task_struct *prev,
+		     struct task_struct *next, int state)
 {
 	__u64 ts;
-	int state;
 	__u32 pid, stack_id;
-	struct task_struct *prev, *next;
 	struct tstamp_data elem, *pelem;
-
-	if (!enabled)
-		return 0;
-
-	prev = (struct task_struct *)ctx[1];
-	next = (struct task_struct *)ctx[2];
-	state = get_task_state(prev);
 
 	ts = bpf_ktime_get_ns();
 
@@ -176,6 +167,48 @@ next:
 	}
 
 	return 0;
+}
+
+SEC("tp_btf/sched_switch")
+int on_switch3(u64 *ctx)
+{
+	struct task_struct *prev, *next;
+	int state;
+
+	if (!enabled)
+		return 0;
+
+	/*
+	 * TP_PROTO(bool preempt, struct task_struct *prev,
+	 *          struct task_struct *next)
+	 */
+	prev = (struct task_struct *)ctx[1];
+	next = (struct task_struct *)ctx[2];
+
+	state = get_task_state(prev);
+
+	return on_switch(ctx, prev, next, state);
+}
+
+SEC("tp_btf/sched_switch")
+int on_switch4(u64 *ctx)
+{
+	struct task_struct *prev, *next;
+	int prev_state;
+
+	if (!enabled)
+		return 0;
+
+	/*
+	 * TP_PROTO(bool preempt, int prev_state,
+	 *          struct task_struct *prev,
+	 *          struct task_struct *next)
+	 */
+	prev = (struct task_struct *)ctx[2];
+	next = (struct task_struct *)ctx[3];
+	prev_state = (int)ctx[1];
+
+	return on_switch(ctx, prev, next, prev_state);
 }
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
