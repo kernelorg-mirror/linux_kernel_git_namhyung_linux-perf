@@ -303,6 +303,7 @@ void arch__post_evsel_config(struct evsel *evsel, struct perf_event_attr *attr);
 int evsel__set_filter(struct evsel *evsel, const char *filter);
 int evsel__append_tp_filter(struct evsel *evsel, const char *filter);
 int evsel__append_addr_filter(struct evsel *evsel, const char *filter);
+int evsel__append_pmu_filter(struct evsel *evsel, const char *filter);
 int evsel__enable_cpu(struct evsel *evsel, int cpu_map_idx);
 int evsel__enable(struct evsel *evsel);
 int evsel__disable(struct evsel *evsel);

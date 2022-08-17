@@ -2459,13 +2459,11 @@ foreach_evsel_in_last_glob(struct evlist *evlist,
 static int set_filter(struct evsel *evsel, const void *arg)
 {
 	const char *str = arg;
-	bool found = false;
 	int nr_addr_filters = 0;
 	struct perf_pmu *pmu = NULL;
 
 	if (evsel == NULL) {
-		fprintf(stderr,
-			"--filter option should follow a -e tracepoint or HW tracer option\n");
+		fprintf(stderr, "--filter option should follow an event\n");
 		return -1;
 	}
 
@@ -2479,16 +2477,19 @@ static int set_filter(struct evsel *evsel, const void *arg)
 		return 0;
 	}
 
-	while ((pmu = perf_pmu__scan(pmu)) != NULL)
-		if (pmu->type == evsel->core.attr.type) {
-			found = true;
-			break;
-		}
+	pmu = perf_pmu__find_by_type(evsel->core.attr.type);
+	if (pmu == NULL) {
+		fprintf(stderr, "Cannot find a PMU for this event filter\n");
+		return -1;
+	}
 
-	if (found)
-		perf_pmu__scan_file(pmu, "nr_addr_filters",
-				    "%d", &nr_addr_filters);
+	if (pmu->set_filter) {
+		evsel->pmu = pmu;
+		evsel__append_pmu_filter(evsel, str);
+		return 0;
+	}
 
+	perf_pmu__scan_file(pmu, "nr_addr_filters", "%d", &nr_addr_filters);
 	if (!nr_addr_filters) {
 		fprintf(stderr,
 			"This CPU does not support address filtering\n");

@@ -1428,6 +1428,11 @@ int evsel__append_addr_filter(struct evsel *evsel, const char *filter)
 	return evsel__append_filter(evsel, "%s,%s", filter);
 }
 
+int evsel__append_pmu_filter(struct evsel *evsel, const char *filter)
+{
+	return evsel__append_filter(evsel, "%s,%s", filter);
+}
+
 /* Caller has to clear disabled after going through all CPUs. */
 int evsel__enable_cpu(struct evsel *evsel, int cpu_map_idx)
 {

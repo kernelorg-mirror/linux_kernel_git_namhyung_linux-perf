@@ -10,6 +10,7 @@
 #include "parse-events.h"
 #include "pmu-events/pmu-events.h"
 
+struct evsel;
 struct evsel_config_term;
 struct perf_cpu_map;
 
@@ -32,6 +33,8 @@ struct perf_pmu_caps {
 	struct list_head list;
 };
 
+typedef int(*pmu_filter_fn)(struct evsel *evsel, const char *filter_str);
+
 struct perf_pmu {
 	char *name;
 	char *alias_name;
@@ -51,6 +54,7 @@ struct perf_pmu {
 	struct list_head caps;    /* HEAD struct perf_pmu_caps -> list */
 	struct list_head list;    /* ELEM */
 	struct list_head hybrid_list;
+	pmu_filter_fn set_filter;
 
 	struct {
 		bool exclude_guest;

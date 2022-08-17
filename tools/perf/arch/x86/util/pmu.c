@@ -10,6 +10,7 @@
 #include <api/fs/fs.h>
 #include <errno.h>
 
+#include "../../../util/amd-ibs.h"
 #include "../../../util/intel-pt.h"
 #include "../../../util/intel-bts.h"
 #include "../../../util/pmu.h"
@@ -26,7 +27,7 @@ struct pmu_alias {
 static LIST_HEAD(pmu_alias_name_list);
 static bool cached_list;
 
-struct perf_event_attr *perf_pmu__get_default_config(struct perf_pmu *pmu __maybe_unused)
+struct perf_event_attr *perf_pmu__get_default_config(struct perf_pmu *pmu)
 {
 #ifdef HAVE_AUXTRACE_SUPPORT
 	if (!strcmp(pmu->name, INTEL_PT_PMU_NAME))
@@ -34,6 +35,9 @@ struct perf_event_attr *perf_pmu__get_default_config(struct perf_pmu *pmu __mayb
 	if (!strcmp(pmu->name, INTEL_BTS_PMU_NAME))
 		pmu->selectable = true;
 #endif
+	if (!strcmp(pmu->name, AMD_IBS_FETCH_PMU_NAME) ||
+	    !strcmp(pmu->name, AMD_IBS_OP_PMU_NAME))
+		return amd_ibs_pmu_default_config(pmu);
 	return NULL;
 }
 

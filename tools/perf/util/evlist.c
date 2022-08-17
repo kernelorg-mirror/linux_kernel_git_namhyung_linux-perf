@@ -1068,6 +1068,15 @@ int evlist__apply_filters(struct evlist *evlist, struct evsel **err_evsel)
 		if (evsel->filter == NULL)
 			continue;
 
+		if (evsel->pmu && evsel->pmu->set_filter) {
+			err = evsel->pmu->set_filter(evsel, evsel->filter);
+			if (err < 0) {
+				*err_evsel = evsel;
+				break;
+			}
+			continue;
+		}
+
 		/*
 		 * filters only work for tracepoint event, which doesn't have cpu limit.
 		 * So evlist and evsel should always be same.

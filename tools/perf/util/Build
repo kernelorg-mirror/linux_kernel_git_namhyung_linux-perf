@@ -112,6 +112,7 @@ perf-y += spark.o
 perf-y += topdown.o
 perf-y += iostat.o
 perf-y += stream.o
+perf-y += amd-ibs.o
 perf-$(CONFIG_AUXTRACE) += auxtrace.o
 perf-$(CONFIG_AUXTRACE) += intel-pt-decoder/
 perf-$(CONFIG_AUXTRACE) += intel-pt.o
