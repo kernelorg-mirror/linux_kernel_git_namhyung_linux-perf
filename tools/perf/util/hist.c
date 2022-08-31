@@ -2689,6 +2689,9 @@ size_t evlist__fprintf_nr_events(struct evlist *evlist, FILE *fp,
 		ret += fprintf(fp, "%s stats:\n", evsel__name(pos));
 		ret += fprintf(fp, "%16s events: %10d\n",
 			       "SAMPLE", hists->stats.nr_samples);
+		if (hists->stats.nr_lost_samples)
+			ret += fprintf(fp, "%16s events: %10d\n",
+				       "LOST_SAMPLES", hists->stats.nr_lost_samples);
 	}
 
 	return ret;
