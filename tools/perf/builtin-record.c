@@ -10,6 +10,7 @@
 
 #include "util/build-id.h"
 #include <subcmd/parse-options.h>
+#include <internal/xyarray.h>
 #include "util/parse-events.h"
 #include "util/config.h"
 
@@ -1852,6 +1853,64 @@ record__switch_output(struct record *rec, bool at_exit)
 	return fd;
 }
 
+static void __record__read_lost_samples(struct record *rec, struct evsel *evsel,
+					struct perf_record_lost_samples *lost,
+					int size, int cpu_idx, int thread_idx)
+{
+	struct perf_counts_values count;
+	struct perf_sample_id *sid;
+	struct perf_sample sample = {};
+
+	if (perf_evsel__read(&evsel->core, cpu_idx, thread_idx, &count) < 0) {
+		pr_err("read LOST count failed\n");
+		return;
+	}
+
+	if (count.lost == 0)
+		return;
+
+	lost->lost = count.lost;
+	if (evsel->core.ids) {
+		sid = xyarray__entry(evsel->core.sample_id, cpu_idx, thread_idx);
+		sample.id = sid->id;
+	}
+
+	perf_event__synthesize_id_sample((void *)(lost + 1),
+					 evsel->core.attr.sample_type, &sample);
+	record__write(rec, NULL, lost, size);
+}
+
+static void record__read_lost_samples(struct record *rec)
+{
+	struct perf_session *session = rec->session;
+	struct machine *machine = &session->machines.host;
+	struct perf_record_lost_samples *lost;
+	struct evsel *evsel;
+	int size = sizeof(*lost) + machine->id_hdr_size;
+
+	lost = zalloc(size);
+	lost->header.type = PERF_RECORD_LOST_SAMPLES;
+	lost->header.size = size;
+
+	evlist__for_each_entry(session->evlist, evsel) {
+		struct xyarray *xy = evsel->core.sample_id;
+
+		if (xyarray__max_x(evsel->core.fd) != xyarray__max_x(xy) ||
+		    xyarray__max_y(evsel->core.fd) != xyarray__max_y(xy)) {
+			pr_debug("Unmatched FD vs. sample ID: skip reading LOST count\n");
+			continue;
+		}
+
+		for (int x = 0; x < xyarray__max_x(xy); x++) {
+			for (int y = 0; y < xyarray__max_y(xy); y++) {
+				__record__read_lost_samples(rec, evsel, lost,
+							    size, x, y);
+			}
+		}
+	}
+
+}
+
 static volatile int workload_exec_errno;
 
 /*
@@ -2710,6 +2769,7 @@ out_free_threads:
 	if (rec->off_cpu)
 		rec->bytes_written += off_cpu_write(rec->session);
 
+	record__read_lost_samples(rec);
 	record__synthesize(rec, true);
 	/* this will be recalculated during process_buildids() */
 	rec->samples = 0;
