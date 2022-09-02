@@ -149,7 +149,7 @@ static __always_inline int
 __perf_output_begin(struct perf_output_handle *handle,
 		    struct perf_sample_data *data,
 		    struct perf_event *event, unsigned int size,
-		    bool backward)
+		    bool backward, bool is_sample)
 {
 	struct perf_buffer *rb;
 	unsigned long tail, offset, head;
@@ -174,7 +174,8 @@ __perf_output_begin(struct perf_output_handle *handle,
 	if (unlikely(rb->paused)) {
 		if (rb->nr_pages) {
 			local_inc(&rb->lost);
-			atomic64_inc(&event->lost_samples);
+			if (is_sample)
+				atomic64_inc(&event->lost_samples);
 		}
 		goto out;
 	}
@@ -256,7 +257,8 @@ __perf_output_begin(struct perf_output_handle *handle,
 
 fail:
 	local_inc(&rb->lost);
-	atomic64_inc(&event->lost_samples);
+	if (is_sample)
+		atomic64_inc(&event->lost_samples);
 	perf_output_put_handle(handle);
 out:
 	rcu_read_unlock();
@@ -268,14 +270,14 @@ int perf_output_begin_forward(struct perf_output_handle *handle,
 			      struct perf_sample_data *data,
 			      struct perf_event *event, unsigned int size)
 {
-	return __perf_output_begin(handle, data, event, size, false);
+	return __perf_output_begin(handle, data, event, size, false, true);
 }
 
 int perf_output_begin_backward(struct perf_output_handle *handle,
 			       struct perf_sample_data *data,
 			       struct perf_event *event, unsigned int size)
 {
-	return __perf_output_begin(handle, data, event, size, true);
+	return __perf_output_begin(handle, data, event, size, true, true);
 }
 
 int perf_output_begin(struct perf_output_handle *handle,
@@ -284,7 +286,7 @@ int perf_output_begin(struct perf_output_handle *handle,
 {
 
 	return __perf_output_begin(handle, data, event, size,
-				   unlikely(is_write_backward(event)));
+				   unlikely(is_write_backward(event)), false);
 }
 
 unsigned int perf_output_copy(struct perf_output_handle *handle,
