@@ -167,11 +167,42 @@ test_system_wide() {
   echo "Basic --system-wide mode test [Success]"
 }
 
+test_workload() {
+  echo "Basic target workload test"
+  if ! perf record ${testopt} -o ${perfdata} ${testprog} 2> /dev/null
+  then
+    echo "Workload record [Failed record]"
+    err=1
+    return
+  fi
+  if ! perf report -i ${perfdata} -q | egrep -q ${testsym}
+  then
+    echo "Workload record [Failed missing output]"
+    err=1
+    return
+  fi
+  if ! perf record -e cpu-clock,cs --threads=package ${testopt} \
+    -o ${perfdata} ${testprog} 2> /dev/null
+  then
+    echo "Workload record [Failed recording with threads]"
+    err=1
+    return
+  fi
+  if ! perf report -i ${perfdata} -q | egrep -q ${testsym}
+  then
+    echo "Workload record [Failed missing output]"
+    err=1
+    return
+  fi
+  echo "Basic target workload test [Success]"
+}
+
 build_test_program
 
 test_per_thread
 test_register_capture
 test_system_wide
+test_workload
 
 cleanup
 exit $err
