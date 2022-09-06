@@ -134,10 +134,44 @@ test_register_capture() {
   echo "Register capture test [Success]"
 }
 
+test_system_wide() {
+  echo "Basic --system-wide mode test"
+  if ! perf record -aB --synth=no ${testopt} -o ${perfdata} ${testprog} 2> /dev/null
+  then
+    echo "System-wide record [Skipped not supported]"
+    if [ $err -ne 1 ]
+    then
+      err=2
+    fi
+    return
+  fi
+  if ! perf report -i ${perfdata} -q | egrep -q ${testsym}
+  then
+    echo "System-wide record [Failed missing output]"
+    err=1
+    return
+  fi
+  if ! perf record -aB --synth=no -e cpu-clock,cs --threads=cpu ${testopt} \
+    -o ${perfdata} ${testprog} 2> /dev/null
+  then
+    echo "System-wide test [Failed recording with threads]"
+    err=1
+    return
+  fi
+  if ! perf report -i ${perfdata} -q | egrep -q ${testsym}
+  then
+    echo "System-wide record [Failed missing output]"
+    err=1
+    return
+  fi
+  echo "Basic --system-wide mode test [Success]"
+}
+
 build_test_program
 
 test_per_thread
 test_register_capture
+test_system_wide
 
 cleanup
 exit $err
