@@ -11,8 +11,8 @@ testsym="test_loop"
 testopt="-D 3"
 
 cleanup() {
-  rm -f ${perfdata}
-  rm -f ${perfdata}.old
+  rm -rf ${perfdata}
+  rm -rf ${perfdata}.old
 
   if [ "${testprog}" != "true" ]; then
     rm -f ${testprog}
@@ -87,6 +87,19 @@ test_per_thread() {
   if ! perf report -i ${perfdata} -q | egrep -q ${testsym}
   then
     echo "Per-thread record [Failed missing output]"
+    err=1
+    return
+  fi
+  if ! perf record -e cpu-clock,cs --per-thread --threads=core ${testopt} \
+    -o ${perfdata} ${testprog} 2> /dev/null
+  then
+    echo "Per-thread record with --threads [Failed]"
+    err=1
+    return
+  fi
+  if ! perf report -i ${perfdata} -q | egrep -q ${testsym}
+  then
+    echo "Per-thread record with --threads [Failed missing output]"
     err=1
     return
   fi
