@@ -37,6 +37,7 @@
 #include <linux/zalloc.h>
 #include <linux/err.h>
 #include <linux/stringify.h>
+#include <linux/time64.h>
 
 static struct perf_session *session;
 static struct target target;
@@ -56,6 +57,9 @@ static bool combine_locks;
 static bool show_thread_stats;
 static bool use_bpf;
 static unsigned long bpf_map_entries = 10240;
+static int bpf_interval = 0;
+
+static volatile int done = 0;
 
 static enum {
 	LOCK_AGGR_ADDR,
@@ -1582,6 +1586,19 @@ out_delete:
 
 static void sighandler(int sig __maybe_unused)
 {
+	done = 1;
+}
+
+static double time_diff(struct timespec *start, struct timespec *stop)
+{
+	double diff = stop->tv_nsec - start->tv_nsec;
+
+	if (diff < 0) {
+		diff += NSEC_PER_SEC;
+		stop->tv_sec--;
+	}
+
+	return stop->tv_sec - start->tv_sec + diff / NSEC_PER_SEC;
 }
 
 static int __cmd_contention(int argc, const char **argv)
@@ -1603,6 +1620,15 @@ static int __cmd_contention(int argc, const char **argv)
 		.result = &lockhash_table[0],
 		.map_nr_entries = bpf_map_entries,
 	};
+
+	if (bpf_interval) {
+		if (!use_bpf) {
+			pr_err("-I option only works with -b\n");
+			return -EINVAL;
+		}
+	} else {
+		setup_pager();
+	}
 
 	session = perf_session__new(use_bpf ? NULL : &data, &eops);
 	if (IS_ERR(session)) {
@@ -1680,12 +1706,30 @@ static int __cmd_contention(int argc, const char **argv)
 		aggr_mode = LOCK_AGGR_CALLER;
 
 	if (use_bpf) {
+		struct timespec time_start, time_stop;
+
 		lock_contention_start();
 		if (argc)
 			evlist__start_workload(con.evlist);
 
-		/* wait for signal */
-		pause();
+		clock_gettime(CLOCK_MONOTONIC, &time_start);
+
+		while (!done) {
+			/* wait for signal */
+			if (bpf_interval) {
+				if (evlist__poll(con.evlist, bpf_interval) < 0)
+					break;
+
+				lock_contention_read(&con);
+				sort_contention_result();
+
+				clock_gettime(CLOCK_MONOTONIC, &time_stop);
+				pr_info("# time: %.3f\n", time_diff(&time_start, &time_stop));
+				print_contention_result();
+			} else {
+				pause();
+			}
+		}
 
 		lock_contention_stop();
 		lock_contention_read(&con);
@@ -1697,8 +1741,6 @@ static int __cmd_contention(int argc, const char **argv)
 		if (err)
 			goto out_delete;
 	}
-
-	setup_pager();
 
 	sort_contention_result();
 	print_contention_result();
@@ -1865,6 +1907,8 @@ int cmd_lock(int argc, const char **argv)
 		   "Trace on existing thread id (exclusive to --pid)"),
 	OPT_CALLBACK(0, "map-nr-entries", &bpf_map_entries, "num",
 		     "Max number of BPF map entries", parse_map_entry),
+	OPT_INTEGER('I', "interval-print", &bpf_interval,
+		    "print lock contention stat at regular interval in ms (with BPF only)"),
 	OPT_PARENT(lock_options)
 	};
 
