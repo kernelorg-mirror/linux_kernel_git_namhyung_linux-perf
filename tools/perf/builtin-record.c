@@ -1966,6 +1966,8 @@ static int record__synthesize(struct record *rec, bool tail)
 	if (rec->opts.tail_synthesize != tail)
 		return 0;
 
+	perf_event__synthesize_start();
+
 	if (data->is_pipe) {
 		err = perf_event__synthesize_for_pipe(tool, session, data,
 						      process_synthesized_event);
@@ -2072,6 +2074,7 @@ static int record__synthesize(struct record *rec, bool tail)
 	}
 
 out:
+	perf_event__synthesize_stop();
 	return err;
 }
 

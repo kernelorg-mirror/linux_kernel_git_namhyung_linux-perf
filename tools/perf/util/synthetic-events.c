@@ -47,6 +47,14 @@
 
 unsigned int proc_map_timeout = DEFAULT_PROC_MAP_PARSE_TIMEOUT;
 
+void perf_event__synthesize_start(void)
+{
+}
+
+void perf_event__synthesize_stop(void)
+{
+}
+
 int perf_tool__process_synth_event(struct perf_tool *tool,
 				   union perf_event *event,
 				   struct machine *machine,

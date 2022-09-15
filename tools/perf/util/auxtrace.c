@@ -1328,6 +1328,7 @@ int perf_event__process_auxtrace_info(struct perf_session *session,
 	if (err)
 		return err;
 
+	perf_event__synthesize_start();
 	unleader_auxtrace(session);
 
 	return 0;
@@ -2834,6 +2835,7 @@ void auxtrace__free(struct perf_session *session)
 	if (!session->auxtrace)
 		return;
 
+	perf_event__synthesize_stop();
 	return session->auxtrace->free(session);
 }
 

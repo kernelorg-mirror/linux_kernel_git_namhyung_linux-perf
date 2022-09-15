@@ -962,6 +962,7 @@ try_again_reset:
 		if (err < 0)
 			return err;
 
+		perf_event__synthesize_start();
 		err = perf_event__synthesize_stat_events(&stat_config, NULL, evsel_list,
 							 process_synthesized_event, is_pipe);
 		if (err < 0)
@@ -2641,6 +2642,7 @@ int cmd_stat(int argc, const char **argv)
 			perf_session__write_header(perf_stat.session, evsel_list, fd, true);
 		}
 
+		perf_event__synthesize_stop();
 		evlist__close(evsel_list);
 		perf_session__delete(perf_stat.session);
 	}

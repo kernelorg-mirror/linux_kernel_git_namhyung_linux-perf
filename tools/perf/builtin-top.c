@@ -1258,6 +1258,8 @@ static int __cmd_top(struct perf_top *top)
 #endif
 	}
 
+	perf_event__synthesize_start();
+
 	ret = perf_event__synthesize_bpf_events(top->session, perf_event__process,
 						&top->session->machines.host,
 						&top->record_opts);
@@ -1272,6 +1274,8 @@ static int __cmd_top(struct perf_top *top)
 	machine__synthesize_threads(&top->session->machines.host, &opts->target,
 				    top->evlist->core.threads, true, false,
 				    top->nr_threads_synthesize);
+
+	perf_event__synthesize_stop();
 
 	if (top->nr_threads_synthesize > 1)
 		perf_set_singlethreaded();

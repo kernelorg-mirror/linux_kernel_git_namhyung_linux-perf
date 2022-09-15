@@ -2368,9 +2368,12 @@ int cmd_inject(int argc, const char **argv)
 	if (ret < 0)
 		goto out_delete;
 
+	perf_event__synthesize_start();
+
 	ret = __cmd_inject(&inject);
 
 	guest_session__exit(&inject.guest_session);
+	perf_event__synthesize_stop();
 
 out_delete:
 	strlist__delete(inject.known_build_ids);
