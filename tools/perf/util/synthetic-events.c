@@ -4,6 +4,7 @@
 #include "util/data.h"
 #include "util/debug.h"
 #include "util/dso.h"
+#include "util/dsos.h"
 #include "util/event.h"
 #include "util/evlist.h"
 #include "util/machine.h"
@@ -47,12 +48,25 @@
 
 unsigned int proc_map_timeout = DEFAULT_PROC_MAP_PARSE_TIMEOUT;
 
+static bool synth_init_done;
+static struct dsos synth_dsos;
+
 void perf_event__synthesize_start(void)
 {
+	if (synth_init_done)
+		return;
+
+	dsos__init(&synth_dsos);
+
+	synth_init_done = true;
 }
 
 void perf_event__synthesize_stop(void)
 {
+	if (!synth_init_done)
+		return;
+
+	dsos__exit(&synth_dsos);
 }
 
 int perf_tool__process_synth_event(struct perf_tool *tool,
@@ -374,26 +388,47 @@ static bool read_proc_maps_line(struct io *io, __u64 *start, __u64 *end,
 static void perf_record_mmap2__read_build_id(struct perf_record_mmap2 *event,
 					     bool is_kernel)
 {
-	struct build_id bid;
+	struct build_id _bid, *bid = &_bid;
+	struct dso *dso = NULL;
+	struct dso_id id;
 	int rc;
 
-	if (is_kernel)
-		rc = sysfs__read_build_id("/sys/kernel/notes", &bid);
-	else
-		rc = filename__read_build_id(event->filename, &bid) > 0 ? 0 : -1;
+	if (is_kernel) {
+		rc = sysfs__read_build_id("/sys/kernel/notes", bid);
+		goto out;
+	}
 
+	id.maj = event->maj;
+	id.min = event->min;
+	id.ino = event->ino;
+	id.ino_generation = event->ino_generation;
+
+	dso = dsos__findnew_id(&synth_dsos, event->filename, &id);
+	if (dso && dso->has_build_id) {
+		bid = &dso->bid;
+		rc = 0;
+		goto out;
+	}
+
+	rc = filename__read_build_id(event->filename, bid) > 0 ? 0 : -1;
+
+out:
 	if (rc == 0) {
-		memcpy(event->build_id, bid.data, sizeof(bid.data));
-		event->build_id_size = (u8) bid.size;
+		memcpy(event->build_id, bid->data, sizeof(bid->data));
+		event->build_id_size = (u8) bid->size;
 		event->header.misc |= PERF_RECORD_MISC_MMAP_BUILD_ID;
 		event->__reserved_1 = 0;
 		event->__reserved_2 = 0;
+
+		if (dso && !dso->has_build_id)
+			dso__set_build_id(dso, bid);
 	} else {
 		if (event->filename[0] == '/') {
 			pr_debug2("Failed to read build ID for %s\n",
 				  event->filename);
 		}
 	}
+	dso__put(dso);
 }
 
 int perf_event__synthesize_mmap_events(struct perf_tool *tool,
