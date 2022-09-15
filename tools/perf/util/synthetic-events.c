@@ -391,6 +391,8 @@ static void perf_record_mmap2__read_build_id(struct perf_record_mmap2 *event,
 	struct build_id _bid, *bid = &_bid;
 	struct dso *dso = NULL;
 	struct dso_id id;
+	struct nsinfo *nsi;
+	struct nscookie nc;
 	int rc;
 
 	if (is_kernel) {
@@ -410,7 +412,13 @@ static void perf_record_mmap2__read_build_id(struct perf_record_mmap2 *event,
 		goto out;
 	}
 
+	nsi = nsinfo__new(event->pid);
+	nsinfo__mountns_enter(nsi, &nc);
+
 	rc = filename__read_build_id(event->filename, bid) > 0 ? 0 : -1;
+
+	nsinfo__mountns_exit(&nc);
+	nsinfo__put(nsi);
 
 out:
 	if (rc == 0) {
