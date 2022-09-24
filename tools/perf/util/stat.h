@@ -8,6 +8,7 @@
 #include <sys/resource.h>
 #include "cpumap.h"
 #include "rblist.h"
+#include "counts.h"
 
 struct perf_cpu_map;
 struct perf_stat_config;
@@ -42,9 +43,17 @@ enum perf_stat_evsel_id {
 	PERF_STAT_EVSEL_ID__MAX,
 };
 
+struct perf_stat_aggr {
+	struct perf_counts_values	counts;
+	int				nr;
+	bool				failed;
+};
+
 struct perf_stat_evsel {
 	struct stats		 res_stats;
 	enum perf_stat_evsel_id	 id;
+	int			 nr_aggr;
+	struct perf_stat_aggr	*aggr;
 	u64			*group_data;
 };
 
