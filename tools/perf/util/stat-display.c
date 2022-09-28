@@ -1477,13 +1477,8 @@ void evlist__print_counters(struct evlist *evlist, struct perf_stat_config *conf
 		if (config->iostat_run)
 			iostat_print_counters(evlist, config, ts, prefix = buf,
 					      print_counter_aggr);
-		else {
-			evlist__for_each_entry(evlist, counter) {
-				print_counter_aggr(config, counter, prefix);
-			}
-			if (metric_only)
-				fputc('\n', config->output);
-		}
+		else
+			print_aggr(config, evlist, prefix);
 		break;
 	case AGGR_NONE:
 		if (metric_only)
