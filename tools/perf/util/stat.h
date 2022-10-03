@@ -46,6 +46,7 @@ enum perf_stat_evsel_id {
 struct perf_stat_aggr {
 	struct perf_counts_values	counts;
 	int				nr;
+	bool				used;
 	bool				failed;
 };
 
@@ -271,6 +272,7 @@ void evlist__reset_aggr_stats(struct evlist *evlist);
 int perf_stat_process_counter(struct perf_stat_config *config,
 			      struct evsel *counter);
 void perf_stat_merge_counters(struct perf_stat_config *config, struct evlist *evlist);
+void perf_stat_process_percore(struct perf_stat_config *config, struct evlist *evlist);
 
 struct perf_tool;
 union perf_event;
