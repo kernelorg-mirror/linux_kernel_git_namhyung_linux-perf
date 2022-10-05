@@ -276,6 +276,19 @@ void evlist__reset_stats(struct evlist *evlist)
 	}
 }
 
+void evlist__reset_aggr_stats(struct evlist *evlist)
+{
+	struct evsel *evsel;
+
+	evlist__for_each_entry(evlist, evsel) {
+		struct perf_stat_evsel *ps = evsel->stats;
+		struct perf_stat_aggr *aggr = ps->aggr;
+
+		if (aggr)
+			memset(aggr, 0, sizeof(*aggr) * ps->nr_aggr);
+	}
+}
+
 void evlist__reset_prev_raw_counts(struct evlist *evlist)
 {
 	struct evsel *evsel;
