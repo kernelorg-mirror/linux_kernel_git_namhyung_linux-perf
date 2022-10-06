@@ -2139,6 +2139,14 @@ int process_stat_config_event(struct perf_session *session,
 	else
 		perf_stat_init_aggr_mode_file(st);
 
+	if (stat_config.aggr_map) {
+		int nr_aggr = stat_config.aggr_map->nr;
+
+		if (evlist__alloc_aggr_stats(session->evlist, nr_aggr) < 0) {
+			pr_err("cannot allocate aggr counts\n");
+			return -1;
+		}
+	}
 	return 0;
 }
 
