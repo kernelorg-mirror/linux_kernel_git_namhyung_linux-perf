@@ -2,6 +2,7 @@
 #include "mutex.h"
 
 #include "debug.h"
+#include "util.h"
 #include <linux/string.h>
 #include <errno.h>
 
@@ -41,6 +42,8 @@ void mutex_init(struct mutex *mtx)
 
 void mutex_init_pshared(struct mutex *mtx)
 {
+	perf_set_multithreaded();
+
 	__mutex_init(mtx, /*pshared=*/true);
 }
 
@@ -52,19 +55,25 @@ void mutex_destroy(struct mutex *mtx)
 void mutex_lock(struct mutex *mtx)
 	NO_THREAD_SAFETY_ANALYSIS
 {
-	CHECK_ERR(pthread_mutex_lock(&mtx->lock));
+	if (!perf_singlethreaded)
+		CHECK_ERR(pthread_mutex_lock(&mtx->lock));
 }
 
 void mutex_unlock(struct mutex *mtx)
 	NO_THREAD_SAFETY_ANALYSIS
 {
-	CHECK_ERR(pthread_mutex_unlock(&mtx->lock));
+	if (!perf_singlethreaded)
+		CHECK_ERR(pthread_mutex_unlock(&mtx->lock));
 }
 
 bool mutex_trylock(struct mutex *mtx)
 {
-	int ret = pthread_mutex_trylock(&mtx->lock);
+	int ret;
 
+	if (perf_singlethreaded)
+		return true;
+
+	ret = pthread_mutex_trylock(&mtx->lock);
 	if (ret == 0)
 		return true; /* Lock acquired. */
 
@@ -95,6 +104,8 @@ void cond_init(struct cond *cnd)
 
 void cond_init_pshared(struct cond *cnd)
 {
+	perf_set_multithreaded();
+
 	__cond_init(cnd, /*pshared=*/true);
 }
 
@@ -105,15 +116,18 @@ void cond_destroy(struct cond *cnd)
 
 void cond_wait(struct cond *cnd, struct mutex *mtx)
 {
-	CHECK_ERR(pthread_cond_wait(&cnd->cond, &mtx->lock));
+	if (!perf_singlethreaded)
+		CHECK_ERR(pthread_cond_wait(&cnd->cond, &mtx->lock));
 }
 
 void cond_signal(struct cond *cnd)
 {
-	CHECK_ERR(pthread_cond_signal(&cnd->cond));
+	if (!perf_singlethreaded)
+		CHECK_ERR(pthread_cond_signal(&cnd->cond));
 }
 
 void cond_broadcast(struct cond *cnd)
 {
-	CHECK_ERR(pthread_cond_broadcast(&cnd->cond));
+	if (!perf_singlethreaded)
+		CHECK_ERR(pthread_cond_broadcast(&cnd->cond));
 }
