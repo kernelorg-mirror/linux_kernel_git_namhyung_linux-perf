@@ -2241,6 +2241,8 @@ static int record__start_threads(struct record *rec)
 		return -1;
 	}
 
+	perf_set_multithreaded();
+
 	pthread_attr_init(&attrs);
 	pthread_attr_setdetachstate(&attrs, PTHREAD_CREATE_DETACHED);
 
@@ -2279,6 +2281,7 @@ out_err:
 
 	if (sigprocmask(SIG_SETMASK, &mask, NULL)) {
 		pr_err("Failed to unblock signals on threads start: %s\n", strerror(errno));
+		perf_set_singlethreaded();
 		ret = -1;
 	}
 
@@ -2308,6 +2311,7 @@ static int record__stop_threads(struct record *rec)
 			pr_debug("written=%" PRIu64 "\n", thread_data[t].bytes_written);
 	}
 
+	perf_set_singlethreaded();
 	return 0;
 }
 

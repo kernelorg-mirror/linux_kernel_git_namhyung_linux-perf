@@ -20,6 +20,7 @@
 #include <subcmd/parse-options.h>
 #include "builtin.h"
 #include "bench/bench.h"
+#include "util/util.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -281,6 +282,9 @@ int cmd_bench(int argc, const char **argv)
 		print_usage();
 		goto end;
 	}
+
+	/* assume all benchmarks are multi-threaded */
+	perf_set_multithreaded();
 
 	if (!strcmp(argv[0], "all")) {
 		run_all_collections();
