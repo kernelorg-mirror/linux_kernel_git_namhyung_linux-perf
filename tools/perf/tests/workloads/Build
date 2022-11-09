@@ -4,5 +4,7 @@ perf-y += noploop.o
 perf-y += thloop.o
 perf-y += leafloop.o
 perf-y += sqrtloop.o
+perf-y += brstack.o
 
 CFLAGS_leafloop.o         = -g -O0 -fno-inline -fno-omit-frame-pointer
+CFLAGS_brstack.o          = -g -O0 -fno-inline
