@@ -63,6 +63,9 @@ libperf = getenv('LIBPERF')
 ext_sources = [f.strip() for f in open('util/python-ext-sources')
 				if len(f.strip()) > 0 and f[0] != '#']
 
+if not '-DHAVE_TRACEEVENT' in cflags:
+    ext_sources.remove('util/trace-event.c')
+
 # use full paths with source files
 ext_sources = list(map(lambda x: '%s/%s' % (src_perf, x) , ext_sources))
 
