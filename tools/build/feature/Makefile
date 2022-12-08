@@ -81,7 +81,8 @@ FILES=                                          \
          test-libzstd.bin			\
          test-clang-bpf-co-re.bin		\
          test-file-handle.bin			\
-         test-libpfm4.bin
+         test-libpfm4.bin			\
+         test-libtraceevent-tep_field_is_relative
 
 FILES := $(addprefix $(OUTPUT),$(FILES))
 
@@ -158,6 +159,9 @@ $(OUTPUT)test-dwarf_getlocations.bin:
 
 $(OUTPUT)test-libelf-getphdrnum.bin:
 	$(BUILD) -lelf
+
+$(OUTPUT)test-libtraceevent-tep_field_is_relative.bin:
+	$(BUILD) -ltraceevent
 
 $(OUTPUT)test-libelf-gelf_getnote.bin:
 	$(BUILD) -lelf
