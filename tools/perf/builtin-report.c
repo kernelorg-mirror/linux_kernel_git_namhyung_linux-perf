@@ -949,6 +949,7 @@ static int __cmd_report(struct report *rep)
 	struct perf_data *data = session->data;
 
 	signal(SIGINT, sig_handler);
+	signal(SIGPIPE, SIG_IGN);
 
 	if (rep->cpu_list) {
 		ret = perf_session__cpu_bitmap(session, rep->cpu_list,
