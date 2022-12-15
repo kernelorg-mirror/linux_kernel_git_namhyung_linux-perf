@@ -385,3 +385,8 @@ char *dso__demangle_sym(struct dso *dso __maybe_unused,
 {
 	return NULL;
 }
+
+bool filename__has_section(const char *filename, const char *sec)
+{
+	return false;
+}
