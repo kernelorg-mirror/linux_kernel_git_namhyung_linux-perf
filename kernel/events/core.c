@@ -7593,7 +7593,7 @@ void perf_prepare_sample(struct perf_event_header *header,
 
 		size += data->callchain->nr;
 
-		header->size += size * sizeof(u64);
+		data->dyn_size += size * sizeof(u64);
 	}
 
 	if (sample_type & PERF_SAMPLE_RAW) {
@@ -7619,7 +7619,7 @@ void perf_prepare_sample(struct perf_event_header *header,
 			data->raw = NULL;
 		}
 
-		header->size += size;
+		data->dyn_size += size;
 	}
 
 	if (sample_type & PERF_SAMPLE_BRANCH_STACK) {
@@ -7631,7 +7631,7 @@ void perf_prepare_sample(struct perf_event_header *header,
 			size += data->br_stack->nr
 			      * sizeof(struct perf_branch_entry);
 		}
-		header->size += size;
+		data->dyn_size += size;
 	}
 
 	if (sample_type & (PERF_SAMPLE_REGS_USER | PERF_SAMPLE_STACK_USER))
@@ -7646,7 +7646,7 @@ void perf_prepare_sample(struct perf_event_header *header,
 			size += hweight64(mask) * sizeof(u64);
 		}
 
-		header->size += size;
+		data->dyn_size += size;
 	}
 
 	if (sample_type & PERF_SAMPLE_STACK_USER) {
@@ -7671,7 +7671,7 @@ void perf_prepare_sample(struct perf_event_header *header,
 			size += sizeof(u64) + stack_size;
 
 		data->stack_user_size = stack_size;
-		header->size += size;
+		data->dyn_size += size;
 	}
 
 	if (filtered_sample_type & PERF_SAMPLE_WEIGHT_TYPE)
@@ -7700,7 +7700,7 @@ void perf_prepare_sample(struct perf_event_header *header,
 			size += hweight64(mask) * sizeof(u64);
 		}
 
-		header->size += size;
+		data->dyn_size += size;
 	}
 
 	if (sample_type & PERF_SAMPLE_PHYS_ADDR &&
@@ -7745,8 +7745,11 @@ void perf_prepare_sample(struct perf_event_header *header,
 		size = perf_prepare_sample_aux(event, data, size);
 
 		WARN_ON_ONCE(size + header->size > U16_MAX);
-		header->size += size;
+		data->dyn_size += size + sizeof(u64); /* size above */
 	}
+
+	header->size += data->dyn_size;
+
 	/*
 	 * If you're adding more sample types here, you likely need to do
 	 * something about the overflowing header::size, like repurpose the
