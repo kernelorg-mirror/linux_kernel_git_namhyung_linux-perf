@@ -52,6 +52,7 @@
 #include "util/pmu-hybrid.h"
 #include "util/evlist-hybrid.h"
 #include "util/off_cpu.h"
+#include "util/bpf-filter.h"
 #include "asm/bug.h"
 #include "perf.h"
 #include "cputopo.h"
@@ -1368,6 +1369,14 @@ try_again:
 
 	session->evlist = evlist;
 	perf_session__set_id_hdr_size(session);
+
+	evlist__for_each_entry(evlist, pos) {
+		if (list_empty(&pos->bpf_filters))
+			continue;
+		rc = perf_bpf_filter__prepare(pos);
+		if (rc)
+			break;
+	}
 out:
 	return rc;
 }

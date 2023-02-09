@@ -27,6 +27,7 @@
 #include "perf.h"
 #include "util/parse-events-hybrid.h"
 #include "util/pmu-hybrid.h"
+#include "util/bpf-filter.h"
 #include "tracepoint.h"
 #include "thread_map.h"
 
@@ -2516,6 +2517,9 @@ static int set_filter(struct evsel *evsel, const void *arg)
 			"--filter option should follow a -e tracepoint or HW tracer option\n");
 		return -1;
 	}
+
+	if (!strncmp(str, "bpf:", 4))
+		return perf_bpf_filter__parse(&evsel->bpf_filters, str+4);
 
 	if (evsel->core.attr.type == PERF_TYPE_TRACEPOINT) {
 		if (evsel__append_tp_filter(evsel, str) < 0) {

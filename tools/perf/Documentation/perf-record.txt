@@ -121,7 +121,9 @@ OPTIONS
 --filter=<filter>::
         Event filter. This option should follow an event selector (-e) which
 	selects either tracepoint event(s) or a hardware trace PMU
-	(e.g. Intel PT or CoreSight).
+	(e.g. Intel PT or CoreSight).  If the filter string starts with 'bpf:'
+	it means a general filter using BPF which can be applied for any kind
+	of events.
 
 	- tracepoint filters
 
@@ -173,6 +175,12 @@ OPTIONS
 	The kernel may not be able to configure a trace region if it is not
 	within a single mapping.  MMAP events (or /proc/<pid>/maps) can be
 	examined to determine if that is a possibility.
+
+	- bpf filters
+
+	BPF filter can access the sample data and make a decision based on the
+	data.  Users need to set the appropriate sample type to use the BPF
+	filter.
 
 	Multiple filters can be separated with space or comma.
 
