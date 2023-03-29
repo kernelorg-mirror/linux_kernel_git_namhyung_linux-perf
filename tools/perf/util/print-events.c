@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <fcntl.h>
 #include <sys/param.h>
 
 #include <api/fs/tracing_path.h>
@@ -59,12 +60,20 @@ static const struct event_symbol event_symbols_tool[PERF_TOOL_MAX] = {
 void print_tracepoint_events(const struct print_callbacks *print_cb, void *print_state)
 {
 	struct dirent **sys_namelist = NULL;
+	char *events_path = get_tracing_file("events");
 	int sys_items = tracing_events__scandir_alphasort(&sys_namelist);
+	int events_fd = open(events_path, O_PATH);
+
+	put_tracing_file(events_path);
+	if (events_fd < 0) {
+		printf("Error: failed to open tracing events directory\n");
+		return;
+	}
 
 	for (int i = 0; i < sys_items; i++) {
 		struct dirent *sys_dirent = sys_namelist[i];
 		struct dirent **evt_namelist = NULL;
-		char *dir_path;
+		int dir_fd;
 		int evt_items;
 
 		if (sys_dirent->d_type != DT_DIR ||
@@ -72,22 +81,26 @@ void print_tracepoint_events(const struct print_callbacks *print_cb, void *print
 		    !strcmp(sys_dirent->d_name, ".."))
 			continue;
 
-		dir_path = get_events_file(sys_dirent->d_name);
-		if (!dir_path)
+		dir_fd = openat(events_fd, sys_dirent->d_name, O_PATH);
+		if (dir_fd < 0)
 			continue;
 
-		evt_items = scandir(dir_path, &evt_namelist, NULL, alphasort);
+		evt_items = scandirat(events_fd, sys_dirent->d_name, &evt_namelist, NULL, alphasort);
 		for (int j = 0; j < evt_items; j++) {
 			struct dirent *evt_dirent = evt_namelist[j];
 			char evt_path[MAXPATHLEN];
+			int evt_fd;
 
 			if (evt_dirent->d_type != DT_DIR ||
 			    !strcmp(evt_dirent->d_name, ".") ||
 			    !strcmp(evt_dirent->d_name, ".."))
 				continue;
 
-			if (tp_event_has_id(dir_path, evt_dirent) != 0)
+			snprintf(evt_path, sizeof(evt_path), "%s/id", evt_dirent->d_name);
+			evt_fd = openat(dir_fd, evt_path, O_RDONLY);
+			if (evt_fd < 0)
 				continue;
+			close(evt_fd);
 
 			snprintf(evt_path, MAXPATHLEN, "%s:%s",
 				 sys_dirent->d_name, evt_dirent->d_name);
@@ -103,10 +116,11 @@ void print_tracepoint_events(const struct print_callbacks *print_cb, void *print
 					/*long_desc=*/NULL,
 					/*encoding_desc=*/NULL);
 		}
-		free(dir_path);
+		close(dir_fd);
 		free(evt_namelist);
 	}
 	free(sys_namelist);
+	close(events_fd);
 }
 
 void print_sdt_events(const struct print_callbacks *print_cb, void *print_state)
