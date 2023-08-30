@@ -2040,6 +2040,7 @@ static int __cmd_contention(int argc, const char **argv)
 		.filters = &filters,
 		.save_callstack = needs_callstack(),
 		.owner = show_lock_owner,
+		.cgroups = RB_ROOT,
 	};
 
 	lockhash_table = calloc(LOCKHASH_SIZE, sizeof(*lockhash_table));
