@@ -59,6 +59,8 @@ struct ins_operands {
 
 struct arch;
 
+bool arch__is(struct arch *arch, const char *name);
+
 struct ins_ops {
 	void (*free)(struct ins_operands *ops);
 	int (*parse)(struct arch *arch, struct ins_operands *ops, struct map_symbol *ms);
