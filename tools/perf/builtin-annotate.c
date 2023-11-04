@@ -317,9 +317,9 @@ static int hist_entry__tty_annotate(struct hist_entry *he,
 				    struct perf_annotate *ann)
 {
 	if (!ann->use_stdio2)
-		return symbol__tty_annotate(&he->ms, evsel, &annotate_opts);
+		return symbol__tty_annotate(&he->ms, evsel);
 
-	return symbol__tty_annotate2(&he->ms, evsel, &annotate_opts);
+	return symbol__tty_annotate2(&he->ms, evsel);
 }
 
 static void hists__find_annotations(struct hists *hists,
