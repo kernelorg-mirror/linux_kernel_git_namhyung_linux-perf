@@ -10,6 +10,7 @@
 struct annotated_op_loc;
 struct debuginfo;
 struct evsel;
+struct hist_entry;
 struct map_symbol;
 struct thread;
 
@@ -139,6 +140,8 @@ struct annotated_data_stat {
 	int insn_track;
 };
 extern struct annotated_data_stat ann_data_stat;
+
+void hist_entry__annotate_data_tty(struct hist_entry *he, struct evsel *evsel);
 
 #ifdef HAVE_DWARF_SUPPORT
 
