@@ -1814,9 +1814,12 @@ static void print_annotated_data_type(struct annotated_data_type *mem_type,
 	printf(";\n");
 }
 
-void hist_entry__annotate_data_tty(struct hist_entry *he, struct evsel *evsel)
+int hist_entry__annotate_data_tty(struct hist_entry *he, struct evsel *evsel)
 {
 	print_annotated_data_header(he, evsel);
 	print_annotated_data_type(he->mem_type, &he->mem_type->self, evsel, 0);
 	printf("\n");
+
+	/* move to the next entry */
+	return '>';
 }

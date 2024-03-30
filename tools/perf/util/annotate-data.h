@@ -11,6 +11,7 @@ struct annotated_op_loc;
 struct debuginfo;
 struct evsel;
 struct hist_entry;
+struct hist_browser_timer;
 struct map_symbol;
 struct thread;
 
@@ -141,7 +142,9 @@ struct annotated_data_stat {
 };
 extern struct annotated_data_stat ann_data_stat;
 
-void hist_entry__annotate_data_tty(struct hist_entry *he, struct evsel *evsel);
+int hist_entry__annotate_data_tty(struct hist_entry *he, struct evsel *evsel);
+int hist_entry__annotate_data_tui(struct hist_entry *he, struct evsel *evsel,
+				  struct hist_browser_timer *hbt);
 
 #ifdef HAVE_DWARF_SUPPORT
 
