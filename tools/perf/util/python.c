@@ -178,7 +178,8 @@ int bpf_counter__disable(struct evsel *evsel __maybe_unused)
 
 // not to drag util/bpf-filter.c
 #ifdef HAVE_BPF_SKEL
-int perf_bpf_filter__prepare(struct evsel *evsel __maybe_unused)
+int perf_bpf_filter__prepare(struct evsel *evsel __maybe_unused,
+			     struct target *target __maybe_unused)
 {
 	return 0;
 }
