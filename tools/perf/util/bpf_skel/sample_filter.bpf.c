@@ -15,7 +15,16 @@ struct filters {
 	__uint(max_entries, 1);
 } filters SEC(".maps");
 
+/* tgid to filter index */
+struct pid_hash {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__type(key, int);
+	__type(value, int);
+	__uint(max_entries, 1);
+} pid_hash SEC(".maps");
+
 int dropped;
+volatile const int use_pid_hash;
 
 void *bpf_cast_to_kern_ctx(void *) __ksym;
 
@@ -140,11 +149,21 @@ int perf_sample_filter(void *ctx)
 	__u64 sample_data;
 	int in_group = 0;
 	int group_result = 0;
-	int i;
+	int i = 0;
 
 	kctx = bpf_cast_to_kern_ctx(ctx);
 
-	i = 0;
+	if (use_pid_hash) {
+		int tgid = bpf_get_current_pid_tgid() >> 32;
+		int *idx;
+
+		idx = bpf_map_lookup_elem(&pid_hash, &tgid);
+		if (idx)
+			i = *idx;
+		else
+			goto drop;
+	}
+
 	entry = bpf_map_lookup_elem(&filters, &i);
 	if (entry == NULL)
 		goto drop;
