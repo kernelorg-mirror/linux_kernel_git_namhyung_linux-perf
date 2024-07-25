@@ -670,18 +670,33 @@ static int evlist__enable_event_idx(struct evlist *evlist, struct evsel *evsel, 
 int auxtrace_record__read_finish(struct auxtrace_record *itr, int idx)
 {
 	struct evsel *evsel;
+	int ret = -EINVAL;
 
-	if (!itr->evlist || !itr->pmu)
+	if (!itr->evlist)
 		return -EINVAL;
 
 	evlist__for_each_entry(itr->evlist, evsel) {
-		if (evsel->core.attr.type == itr->pmu->type) {
+		if (evsel__is_aux_event(evsel)) {
 			if (evsel->disabled)
-				return 0;
-			return evlist__enable_event_idx(itr->evlist, evsel, idx);
+				continue;
+			/*
+			 * Multiple AUX events might be opened in a session.
+			 * Bail out for success case as the AUX event has been
+			 * found and enabled, otherwise, continue to check if
+			 * the next AUX event can cover the mmaped buffer with
+			 * 'idx'.
+			 */
+			ret = evlist__enable_event_idx(itr->evlist, evsel, idx);
+			if (ret >= 0)
+				return ret;
 		}
 	}
-	return -EINVAL;
+
+	/* Failed to find an event for the buffer 'idx' */
+	if (ret < 0)
+		pr_err("Failed to enable event (idx=%d): %d\n", idx, ret);
+
+	return ret;
 }
 
 /*
