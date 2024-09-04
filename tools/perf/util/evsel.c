@@ -2419,6 +2419,20 @@ check:
 	return false;
 }
 
+static bool evsel__handle_error_quirks(struct evsel *evsel, int error)
+{
+	/* AMD IBS doesn't support exclude_kernel, forward it to core PMU */
+	if (error == -EINVAL && evsel->precise_max && evsel->core.attr.precise_ip &&
+	    evsel->core.attr.exclude_kernel && x86__is_amd_cpu()) {
+		evsel->core.attr.precise_ip = 0;
+		pr_debug2_peo("removing precise_ip on AMD\n");
+		display_attr(&evsel->core.attr);
+		return true;
+	}
+
+	return false;
+}
+
 static int evsel__open_cpu(struct evsel *evsel, struct perf_cpu_map *cpus,
 		struct perf_thread_map *threads,
 		int start_cpu_map_idx, int end_cpu_map_idx)
@@ -2580,9 +2594,6 @@ retry_open:
 	return 0;
 
 try_fallback:
-	if (evsel__precise_ip_fallback(evsel))
-		goto retry_open;
-
 	if (evsel__ignore_missing_thread(evsel, perf_cpu_map__nr(cpus),
 					 idx, threads, thread, err)) {
 		/* We just removed 1 thread, so lower the upper nthreads limit. */
@@ -2599,11 +2610,15 @@ try_fallback:
 	if (err == -EMFILE && rlimit__increase_nofile(&set_rlimit))
 		goto retry_open;
 
-	if (err != -EINVAL || idx > 0 || thread > 0)
-		goto out_close;
+	if (err == -EOPNOTSUPP && evsel__precise_ip_fallback(evsel))
+		goto retry_open;
 
-	if (evsel__detect_missing_features(evsel))
+	if (err == -EINVAL && evsel__detect_missing_features(evsel))
 		goto fallback_missing_features;
+
+	if (evsel__handle_error_quirks(evsel, err))
+		goto retry_open;
+
 out_close:
 	if (err)
 		threads->err_thread = thread;
