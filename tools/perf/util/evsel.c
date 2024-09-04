@@ -3389,10 +3389,16 @@ bool evsel__fallback(struct evsel *evsel, struct target *target, int err,
 		free(evsel->name);
 		evsel->name = new_name;
 		scnprintf(msg, msgsize, "kernel.perf_event_paranoid=%d, trying "
-			  "to fall back to excluding kernel and hypervisor "
-			  " samples", paranoid);
+			  "to fall back to excluding kernel samples", paranoid);
 		evsel->core.attr.exclude_kernel = 1;
-		evsel->core.attr.exclude_hv     = 1;
+
+		return true;
+	} else if (err == EACCES && !evsel->core.attr.exclude_hv &&
+		   (paranoid = perf_event_paranoid()) > 1) {
+		/* Intel branch stack requires exclude_hv */
+		scnprintf(msg, msgsize, "kernel.perf_event_paranoid=%d, trying "
+			  "to fall back to excluding hypervisor samples", paranoid);
+		evsel->core.attr.exclude_hv = 1;
 
 		return true;
 	}
