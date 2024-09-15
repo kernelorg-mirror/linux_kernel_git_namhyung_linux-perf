@@ -221,6 +221,7 @@ struct perf_missing_features {
 	bool weight_struct;
 	bool read_lost;
 	bool branch_counters;
+	bool defer_callchain;
 };
 
 extern struct perf_missing_features perf_missing_features;
