@@ -6890,7 +6890,7 @@ static void perf_event_callchain_deferred(struct perf_event *event)
 	perf_callchain_user_deferred(&ctx, regs);
 
 	deferred_event->header.type = PERF_RECORD_CALLCHAIN_DEFERRED;
-	deferred_event->header.misc = 0;
+	deferred_event->header.misc = PERF_RECORD_MISC_USER;
 	deferred_event->header.size = sizeof(*deferred_event) +
 				      (callchain->nr * sizeof(u64));
 
@@ -6900,7 +6900,8 @@ static void perf_event_callchain_deferred(struct perf_event *event)
 			      deferred_event->header.size))
 		return;
 
-	perf_output_copy(&handle, deferred_event, deferred_event->header.size);
+	perf_output_put(&handle, *deferred_event);
+	__output_copy(&handle, callchain->ip, callchain->nr * sizeof(u64));
 	perf_event__output_id_sample(event, &handle, &data);
 	perf_output_end(&handle);
 }
