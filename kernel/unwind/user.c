@@ -80,8 +80,10 @@ int user_unwind_start(struct user_unwind_state *state,
 	case USER_UNWIND_TYPE_SFRAME:
 		if (!sframe_possible)
 			return -EINVAL;
+		state->type = type;
 		break;
 	case USER_UNWIND_TYPE_FP:
+		state->type = type;
 		break;
 	default:
 		return -EINVAL;
