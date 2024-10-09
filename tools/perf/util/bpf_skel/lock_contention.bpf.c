@@ -100,6 +100,13 @@ struct {
 	__uint(max_entries, 1);
 } cgroup_filter SEC(".maps");
 
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__uint(key_size, sizeof(long));
+	__uint(value_size, sizeof(struct slab_cache_data));
+	__uint(max_entries, 1);
+} slab_caches SEC(".maps");
+
 struct rw_semaphore___old {
 	struct task_struct *owner;
 } __attribute__((preserve_access_index));
@@ -135,6 +142,8 @@ int enabled;
 int perf_subsys_id = -1;
 
 __u64 end_ts;
+
+__u32 slab_cache_id;
 
 /* error stat */
 int task_fail;
@@ -560,6 +569,25 @@ SEC("raw_tp/bpf_test_finish")
 int BPF_PROG(end_timestamp)
 {
 	end_ts = bpf_ktime_get_ns();
+	return 0;
+}
+
+SEC("iter/kmem_cache")
+int slab_cache_iter(struct bpf_iter__kmem_cache *ctx)
+{
+	struct kmem_cache *s = ctx->s;
+	struct slab_cache_data d;
+
+	if (s == NULL)
+		return 0;
+
+	d.id = ++slab_cache_id << LCB_F_SLAB_ID_SHIFT;
+	bpf_probe_read_kernel_str(d.name, sizeof(d.name), s->name);
+
+	if (d.id >= LCB_F_SLAB_ID_END)
+		return 0;
+
+	bpf_map_update_elem(&slab_caches, &s, &d, BPF_NOEXIST);
 	return 0;
 }
 
