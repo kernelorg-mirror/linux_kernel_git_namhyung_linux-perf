@@ -229,6 +229,9 @@ void global_var_type__tree_delete(struct rb_root *root);
 
 int hist_entry__annotate_data_tty(struct hist_entry *he, struct evsel *evsel);
 
+int annotated_data_type__get_member_name(struct annotated_data_type *adt,
+					 char *buf, size_t sz, int member_offset);
+
 bool has_reg_type(struct type_state *state, int reg);
 struct type_state_stack *findnew_stack_state(struct type_state *state,
 						int offset, u8 kind,
