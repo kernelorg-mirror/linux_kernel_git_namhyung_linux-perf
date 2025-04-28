@@ -1362,6 +1362,11 @@ static int symbol__annotate_fprintf2(struct symbol *sym, FILE *fp,
 	};
 	struct annotation_line *al;
 
+	if (annotate_opts.code_with_type) {
+		evsel__get_arch(apd->evsel, &apd->arch);
+		apd->dbg = debuginfo__new(dso__long_name(map__dso(apd->he->ms.map)));
+	}
+
 	list_for_each_entry(al, &notes->src->source, node) {
 		if (annotation_line__filter(al))
 			continue;
@@ -1369,6 +1374,9 @@ static int symbol__annotate_fprintf2(struct symbol *sym, FILE *fp,
 		fputc('\n', fp);
 		wops.first_line = false;
 	}
+
+	if (annotate_opts.code_with_type)
+		debuginfo__delete(apd->dbg);
 
 	return 0;
 }
@@ -1742,7 +1750,7 @@ static double annotation_line__max_percent(struct annotation_line *al,
 	return percent_max;
 }
 
-static void disasm_line__write(struct disasm_line *dl, struct annotation *notes,
+static int disasm_line__write(struct disasm_line *dl, struct annotation *notes,
 			       void *obj, char *bf, size_t size,
 			       void (*obj__printf)(void *obj, const char *fmt, ...),
 			       void (*obj__write_graph)(void *obj, int graph))
@@ -1770,8 +1778,8 @@ call_like:
 		obj__printf(obj, "  ");
 	}
 
-	disasm_line__scnprintf(dl, bf, size, !annotate_opts.use_offset,
-			       notes->src->widths.max_ins_name);
+	return disasm_line__scnprintf(dl, bf, size, !annotate_opts.use_offset,
+				      notes->src->widths.max_ins_name);
 }
 
 static void ipc_coverage_string(char *bf, int size, struct annotation *notes)
@@ -2115,11 +2123,52 @@ print_addr:
 
 		width -= printed + 3;
 
-		disasm_line__write(disasm_line(al), notes, obj, bf, sizeof(bf), obj__printf, obj__write_graph);
+		printed = disasm_line__write(disasm_line(al), notes, obj, bf, sizeof(bf),
+					     obj__printf, obj__write_graph);
 
-		obj__printf(obj, "%-*s", width, bf);
+		obj__printf(obj, "%s", bf);
+		width -= printed;
 
-		(void)apd;
+		if (annotate_opts.code_with_type && apd->dbg) {
+			struct annotated_data_type *data_type;
+			int offset = 0;
+
+			data_type = __hist_entry__get_data_type(apd->he, apd->arch,
+								apd->dbg,
+								disasm_line(al),
+								&offset);
+			if (data_type && data_type != NO_TYPE) {
+				char member[256];
+
+				printed = scnprintf(bf, sizeof(bf),
+						    "\t\t# data-type: %s",
+						    data_type->self.type_name);
+
+				if (data_type != &stackop_type &&
+				    data_type != &canary_type &&
+				    sizeof(bf) > (size_t)printed) {
+					printed += scnprintf(bf + printed,
+							     sizeof(bf) - printed,
+							     " +%#x", offset);
+				}
+
+				if (annotated_data_type__get_member_name(data_type,
+									 member,
+									 sizeof(member),
+									 offset) &&
+				    sizeof(bf) > (size_t)printed) {
+					printed += scnprintf(bf + printed,
+							     sizeof(bf) - printed,
+							     " (%s)", member);
+				}
+
+				obj__printf(obj, "%-*s", width, bf);
+			} else {
+				obj__printf(obj, "%-*s", width, " ");
+			}
+		} else {
+			obj__printf(obj, "%-*s", width, " ");
+		}
 	}
 
 }
