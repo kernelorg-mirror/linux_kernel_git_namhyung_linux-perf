@@ -765,6 +765,17 @@ __hist_entry__get_data_type(struct hist_entry *he, struct arch *arch,
 			    struct debuginfo *dbg, struct disasm_line *dl,
 			    int *type_offset);
 
+static bool needs_type_info(struct annotated_data_type *data_type)
+{
+	if (data_type == NULL || data_type == NO_TYPE)
+		return false;
+
+	if (verbose)
+		return true;
+
+	return (data_type != &stackop_type) && (data_type != &canary_type);
+}
+
 static int
 annotation_line__print(struct annotation_line *al, struct annotation_print_data *apd,
 		       struct annotation_options *opts, int printed,
@@ -844,7 +855,7 @@ annotation_line__print(struct annotation_line *al, struct annotation_print_data 
 
 			data_type = __hist_entry__get_data_type(apd->he, apd->arch,
 								apd->dbg, dl, &offset);
-			if (data_type && data_type != NO_TYPE) {
+			if (needs_type_info(data_type)) {
 				char buf[4096];
 
 				printf("\t\t# data-type: %s",
@@ -2138,7 +2149,7 @@ print_addr:
 								apd->dbg,
 								disasm_line(al),
 								&offset);
-			if (data_type && data_type != NO_TYPE) {
+			if (needs_type_info(data_type)) {
 				char member[256];
 
 				printed = scnprintf(bf, sizeof(bf),
