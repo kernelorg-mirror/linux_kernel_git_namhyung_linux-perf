@@ -3770,13 +3770,15 @@ static void trace__init_syscall_bpf_progs(struct trace *trace, int e_machine, in
 static int trace__bpf_prog_sys_enter_fd(struct trace *trace, int e_machine, int id)
 {
 	struct syscall *sc = trace__syscall_info(trace, NULL, e_machine, id);
-	return sc ? bpf_program__fd(sc->bpf_prog.sys_enter) : bpf_program__fd(unaugmented_prog);
+	return sc ? bpf_program__fd(sc->bpf_prog.sys_enter) :
+		bpf_program__fd(augmented_syscalls__unaugmented_enter());
 }
 
 static int trace__bpf_prog_sys_exit_fd(struct trace *trace, int e_machine, int id)
 {
 	struct syscall *sc = trace__syscall_info(trace, NULL, e_machine, id);
-	return sc ? bpf_program__fd(sc->bpf_prog.sys_exit) : bpf_program__fd(unaugmented_prog);
+	return sc ? bpf_program__fd(sc->bpf_prog.sys_exit) :
+		bpf_program__fd(augmented_syscalls__unaugmented_exit());
 }
 
 static int trace__bpf_sys_enter_beauty_map(struct trace *trace, int e_machine, int key, unsigned int *beauty_array)
@@ -3977,7 +3979,7 @@ static int trace__init_syscalls_bpf_prog_array_maps(struct trace *trace, int e_m
 	if (augmented_syscalls__get_map_fds(&map_enter_fd, &map_exit_fd, &beauty_map_fd) < 0)
 		return -1;
 
-	unaugmented_prog = augmented_syscalls__unaugmented();
+	unaugmented_prog = augmented_syscalls__unaugmented_enter();
 
 	for (int i = 0, num_idx = syscalltbl__num_idx(e_machine); i < num_idx; ++i) {
 		int prog_fd, key = syscalltbl__id_at_idx(e_machine, i);
