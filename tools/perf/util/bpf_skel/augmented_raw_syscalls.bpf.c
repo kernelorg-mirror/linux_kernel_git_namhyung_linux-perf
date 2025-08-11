@@ -7,6 +7,7 @@
  */
 
 #include "vmlinux.h"
+#include "perf_trace_u.h"
 
 #include <bpf/bpf_helpers.h>
 #include <linux/limits.h>
@@ -140,7 +141,7 @@ static inline struct augmented_args_payload *augmented_args_payload(void)
 	return bpf_map_lookup_elem(&augmented_args_tmp, &key);
 }
 
-static inline int augmented__output(void *ctx, struct augmented_args_payload *args, int len)
+static inline int augmented__output(void *ctx, void *args, int len)
 {
 	/* If perf_event_output fails, return non-zero so that it gets recorded unaugmented */
 	return bpf_perf_event_output(ctx, &__augmented_syscalls__, BPF_F_CURRENT_CPU, args, len);
@@ -182,12 +183,20 @@ unsigned int augmented_arg__read_str(struct augmented_arg *augmented_arg, const 
 SEC("tp/raw_syscalls/sys_enter")
 int sys_enter_unaugmented(struct trace_event_raw_sys_enter *args)
 {
+	struct augmented_args_payload *augmented_args = augmented_args_payload();
+
+        if (augmented_args)
+		augmented__output(args, &augmented_args->args, sizeof(*args));
 	return 1;
 }
 
 SEC("tp/raw_syscalls/sys_exit")
 int sys_exit_unaugmented(struct trace_event_raw_sys_exit *args)
 {
+	struct augmented_args_payload *augmented_args = augmented_args_payload();
+
+	if (augmented_args)
+		augmented__output(args, &augmented_args->args, sizeof(*args));
 	return 1;
 }
 
@@ -450,6 +459,7 @@ static int augment_sys_enter(void *ctx, struct trace_event_raw_sys_enter *args)
 
 	/* copy the sys_enter header, which has the id */
 	__builtin_memcpy(&payload->args, args, sizeof(*args));
+	payload->args.ent.type = SYSCALL_TRACE_ENTER;
 
 	/*
 	 * Determine what type of argument and how many bytes to read from user space, using the
@@ -532,13 +542,14 @@ int sys_enter(struct trace_event_raw_sys_enter *args)
 	 */
 
 	if (pid_filter__has(&pids_filtered, getpid()))
-		return 0;
+		return 1;
 
 	augmented_args = augmented_args_payload();
 	if (augmented_args == NULL)
 		return 1;
 
 	bpf_probe_read_kernel(&augmented_args->args, sizeof(augmented_args->args), args);
+	augmented_args->args.ent.type = SYSCALL_TRACE_ENTER;
 
 	/*
 	 * Jump to syscall specific augmenter, even if the default one,
@@ -548,29 +559,35 @@ int sys_enter(struct trace_event_raw_sys_enter *args)
 	if (augment_sys_enter(args, &augmented_args->args))
 		bpf_tail_call(args, &syscalls_sys_enter, augmented_args->args.id);
 
-	// If not found on the PROG_ARRAY syscalls map, then we're filtering it:
-	return 0;
+	return 1;
 }
 
 SEC("tp/raw_syscalls/sys_exit")
 int sys_exit(struct trace_event_raw_sys_exit *args)
 {
-	struct trace_event_raw_sys_exit exit_args;
+	struct augmented_args_payload *augmented_args;
 
 	if (pid_filter__has(&pids_filtered, getpid()))
-		return 0;
+		return 1;
 
-	bpf_probe_read_kernel(&exit_args, sizeof(exit_args), args);
+	augmented_args = augmented_args_payload();
+	if (augmented_args == NULL)
+		return 1;
+
+	bpf_probe_read_kernel(&augmented_args->args, sizeof(*args), args);
+	augmented_args->args.ent.type = SYSCALL_TRACE_EXIT;
+
 	/*
 	 * Jump to syscall specific return augmenter, even if the default one,
 	 * "!raw_syscalls:unaugmented" that will just return 1 to return the
 	 * unaugmented tracepoint payload.
 	 */
-	bpf_tail_call(args, &syscalls_sys_exit, exit_args.id);
+	bpf_tail_call(args, &syscalls_sys_exit, args->id);
 	/*
-	 * If not found on the PROG_ARRAY syscalls map, then we're filtering it:
+	 * If not found on the PROG_ARRAY syscalls map, then we're filtering it
+	 * by not emitting bpf-output event.
 	 */
-	return 0;
+	return 1;
 }
 
 char _license[] SEC("license") = "GPL";
